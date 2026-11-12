@@ -31,6 +31,7 @@ It runs as a menu bar app, without a Dock icon. The shelf is a working area for 
 | **Download progress** | A ring near the notch and a card in the panel. Uses system-published file progress when available; recognized temporary download files show an indeterminate indicator otherwise. |
 | **Focus timer** | 5, 15, 25, and 50 minute presets, pause/resume, add five minutes, and stop. Completion plays a sound and reveals the shelf. |
 | **Clipboard history** | Text and images, click to copy, drag out, pin, and delete. Keeps 50 unpinned entries by default; settings offer 20/50/100/200. Pinned entries do not count toward that limit. |
+| **Ask Claude / ChatGPT** | Select text in any app → right-click → Services → *Спросить Claude* / *Спросить ChatGPT*. A Liquid Glass panel opens under the notch with the selection attached, quick actions (reply, translate, fix, shorten, explain), streaming answers, follow-ups, copy, and "continue in browser". Also available from the shelf header and menu bar. Only providers with a saved key are shown. Optional: an island with *Ask* buttons appears automatically when you select text (requires Accessibility permission; off by default). Uses your own Anthropic / OpenAI API key. |
 | **Drag-and-drop tray** | Accepts files, URLs, images, and text. Existing files stay in place and are referenced by the tray; dropped text, links, and images are saved in the app's local support folder. |
 
 The collapsed indicator prioritizes **downloads → timer → playing music → recent files**.
@@ -56,7 +57,7 @@ This is an early personal utility, published with its source code. It is not a v
 - A notch is optional. The shelf chooses one screen, preferring a notched display.
 - Liquid Glass is used when compiled with Swift 6.2+ and a macOS 26 SDK, and run on macOS 26+. Earlier systems/toolchains use the material fallback in the source.
 
-No third-party Swift packages, account, backend, or API key are required.
+No third-party Swift packages, account, or backend are required. An Anthropic and/or OpenAI API key is needed **only** for the optional Ask Claude / ChatGPT feature.
 
 ## Install from source
 
@@ -104,13 +105,14 @@ If signing reports “resource fork, Finder information, or similar detritus not
 
 macOS may request **Files and Folders** access for watched folders and **Automation** access to control Music or Spotify. Grant access only to features you want to use. You can review these in System Settings → Privacy & Security. Launch at login is optional and uses the system login-item service.
 
-The app watches screenshots saved by macOS; it does not implement its own screen recording. The source does not request broad Full Disk Access or Accessibility access. Music integration depends on the running player's permissions.
+The app watches screenshots saved by macOS; it does not implement its own screen recording. The source does not request broad Full Disk Access. **Accessibility** access is requested only if you turn on *Show island on text selection*; it is used to read the selected text in the focused app (password fields are skipped). Because local builds are ad-hoc signed, you may need to re-enable NotchShelf in Accessibility after each rebuild. Music integration depends on the running player's permissions.
 
 ## Privacy and local storage
 
 - Clipboard text and metadata are stored as JSON, and clipboard images as PNGs, under `~/Library/Application Support/NotchShelf/Clips/`. These files are **not encrypted by the app**.
 - Dropped text, links, and images are stored under `~/Library/Application Support/NotchShelf/Tray/`. Shelf references and settings are kept in UserDefaults.
 - Known concealed/transient pasteboard markers are skipped. **This is not a guarantee that all passwords or secrets are excluded**: unmarked sensitive text can be captured. Pause history before copying sensitive content and remove saved entries as needed.
+- **Ask Claude / ChatGPT sends data to a third party.** When you send a question, the question, the selected text, and the conversation are sent to Anthropic (`api.anthropic.com`) or OpenAI (`api.openai.com`) under your API key and their terms. Nothing is sent until you press Send or a quick action. API keys are stored in the macOS Keychain (service `app.glamlabs.notchshelf`); conversations are not saved to disk.
 - The reviewed source contains no analytics or cloud-sync implementation. Spotify artwork can be fetched over the network from the artwork URL returned by Spotify.
 - No personal clipboard data, screenshots, `.env` files, certificates, developer caches, or compiled app bundle are included in this repository.
 
@@ -122,7 +124,8 @@ The app watches screenshots saved by macOS; it does not implement its own screen
 - Watching is limited to configured top-level folders. Existing untracked files are not imported automatically, and screenshot identification relies on macOS metadata.
 - The timer is in memory and is not restored after quitting. It is not a system alarm service.
 - The shelf currently targets one display. Full-screen, multi-monitor, notchless, and Intel behavior need further testing.
-- There is no custom global keyboard shortcut, AI assistant integration, cloud upload, image conversion, or GIF generation in this source.
+- There is no custom global keyboard shortcut (assign one to the Services items in System Settings → Keyboard → Keyboard Shortcuts → Services), cloud upload, image conversion, or GIF generation in this source.
+- Ask Claude / ChatGPT: the Services items may need a log out/in or enabling in Keyboard Shortcuts → Services before they appear. Answers render inline Markdown only (no tables or headings). Model lists are fetched from each provider; the defaults are `claude-sonnet-4-5` and `gpt-5` until a key is validated. Because local builds are ad-hoc signed, macOS may ask to allow Keychain access again after a rebuild.
 
 ## Uninstall
 

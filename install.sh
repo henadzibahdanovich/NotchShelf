@@ -62,6 +62,20 @@ cat > "$STAGED_APP/Contents/Info.plist" <<PLIST
   <key>NSDesktopFolderUsageDescription</key><string>NotchShelf watches for new screenshots on your Desktop.</string>
   <key>NSDocumentsFolderUsageDescription</key><string>NotchShelf watches for screenshots in the selected folder.</string>
   <key>NSDownloadsFolderUsageDescription</key><string>NotchShelf shows new downloads and screenshots from Downloads.</string>
+  <key>NSServices</key><array>
+    <dict>
+      <key>NSMenuItem</key><dict><key>default</key><string>Спросить Claude</string></dict>
+      <key>NSMessage</key><string>askClaude</string>
+      <key>NSPortName</key><string>NotchShelf</string>
+      <key>NSSendTypes</key><array><string>public.utf8-plain-text</string><string>NSStringPboardType</string></array>
+    </dict>
+    <dict>
+      <key>NSMenuItem</key><dict><key>default</key><string>Спросить ChatGPT</string></dict>
+      <key>NSMessage</key><string>askChatGPT</string>
+      <key>NSPortName</key><string>NotchShelf</string>
+      <key>NSSendTypes</key><array><string>public.utf8-plain-text</string><string>NSStringPboardType</string></array>
+    </dict>
+  </array>
   <key>NSAppleEventsUsageDescription</key><string>NotchShelf displays and controls playback in Music and Spotify.</string>
 </dict></plist>
 PLIST
@@ -99,5 +113,7 @@ if ! ditto "$APP_DIR" "$DESTINATION"; then
   exit 1
 fi
 if [[ -n "$BACKUP" ]]; then echo "Previous app saved in: $BACKUP"; fi
+# Refresh the Services menu so "Ask Claude / ChatGPT" appear for selected text.
+/System/Library/CoreServices/pbs -update 2>/dev/null || true
 echo "Launching. Review screenshot cleanup and clipboard settings on first launch."
 open "$DESTINATION"

@@ -34,6 +34,24 @@ struct SettingsView: View {
                 .padding(.vertical, 4)
             }
 
+            Section {
+                // Выбор по умолчанию имеет смысл, только когда подключены оба
+                if settings.availableProviders.count > 1 {
+                    Picker("По умолчанию", selection: $settings.defaultAIProvider) {
+                        ForEach(settings.availableProviders) { Text($0.title).tag($0) }
+                    }
+                }
+                AIKeyRow(provider: .claude, settings: settings)
+                AIKeyRow(provider: .chatgpt, settings: settings)
+                SelectionToggleRow(settings: settings)
+            } header: {
+                Text("Спросить Claude и ChatGPT")
+            } footer: {
+                Text("Пункты «Спросить …» появляются только для ИИ с подключённым ключом. Выделите текст → правый клик → Службы, или включите островок при выделении. Ключи хранятся в Связке ключей.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Скриншоты") {
                 Picker("Сохранять в", selection: $settings.screenshotFolder) {
                     ForEach(ScreenshotFolder.allCases) { Text($0.title).tag($0) }
@@ -128,6 +146,144 @@ struct SettingsView: View {
         }
         .onChange(of: settings.hideSystemThumbnail) { _, hide in
             ScreenCaptureConfig.setFloatingThumbnail(enabled: !hide)
+        }
+    }
+}
+
+/// Ввод и проверка API-ключа + выбор модели.
+private struct AIKeyRow: View {
+    let provider: AIProvider
+    @ObservedObject var settings: AppSettings
+    @State private var draft = ""
+    @State private var hasKey = false
+    @State private var models: [String] = []
+    @State private var status: String?
+    @State private var checking = false
+
+    var body: some View {
+        Group { content }
+            .task {
+                hasKey = Keychain.get(provider.keychainAccount) != nil
+                if hasKey { await loadModels() }
+            }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if hasKey {
+            LabeledContent("Ключ \(provider.title)") {
+                HStack(spacing: 8) {
+                    if checking {
+                        ProgressView().controlSize(.small)
+                    } else if status == nil {
+                        Label("Работает", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    }
+                    Button("Удалить") {
+                        Keychain.delete(provider.keychainAccount)
+                        settings.refreshAIKeys()
+                        hasKey = false
+                        models = []
+                        status = nil
+                    }
+                }
+            }
+            Picker("Модель \(provider.title)", selection: modelBinding) {
+                ForEach(modelOptions, id: \.self) { Text($0).tag($0) }
+            }
+            if let status {
+                Text(status).font(.caption).foregroundStyle(.orange)
+            }
+        } else {
+            LabeledContent("Ключ \(provider.title)") {
+                HStack(spacing: 8) {
+                    SecureField("Вставьте ключ", text: $draft)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 200)
+                        .onSubmit(save)
+                    Button("Сохранить", action: save)
+                        .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            Link("Где взять ключ \(provider.title) →", destination: provider.keyPageURL)
+                .font(.caption)
+        }
+    }
+
+    private var modelBinding: Binding<String> {
+        Binding(get: { settings.model(for: provider) },
+                set: { settings.setModel($0, for: provider) })
+    }
+
+    private var modelOptions: [String] {
+        let current = settings.model(for: provider)
+        return models.contains(current) ? models : [current] + models
+    }
+
+    private func save() {
+        let key = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else { return }
+        Keychain.set(key, for: provider.keychainAccount)
+        settings.refreshAIKeys()
+        draft = ""
+        hasKey = true
+        Task { await loadModels() }
+    }
+
+    private func loadModels() async {
+        guard let key = Keychain.get(provider.keychainAccount) else { return }
+        checking = true
+        defer { checking = false }
+        do {
+            let list = try await AIClient.fetchModels(provider: provider, key: key)
+            models = list
+            status = nil
+            // Если сохранённой модели нет в списке — выбираем подходящую по умолчанию
+            if !list.contains(settings.model(for: provider)), let best = preferred(from: list) {
+                settings.setModel(best, for: provider)
+            }
+        } catch {
+            status = "Не удалось проверить ключ: " + ((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+        }
+    }
+
+    private func preferred(from list: [String]) -> String? {
+        switch provider {
+        case .claude: return list.first { $0.contains("sonnet") } ?? list.first
+        case .chatgpt: return list.first { $0 == "gpt-5" } ?? list.first { !$0.contains("mini") && !$0.contains("nano") } ?? list.first
+        }
+    }
+}
+
+/// Переключатель «Показывать островок при выделении текста» + статус доступа.
+private struct SelectionToggleRow: View {
+    @ObservedObject var settings: AppSettings
+
+    var body: some View {
+        Toggle(isOn: $settings.showOnSelection) {
+            Text("Показывать островок при выделении текста")
+            Text("Выделили текст в любом приложении — у чёлки появляются кнопки «Спросить» и быстрые действия.")
+        }
+        .disabled(settings.availableProviders.isEmpty)
+
+        if settings.showOnSelection {
+            // Статус доступа обновляется раз в секунду, пока открыты настройки
+            TimelineView(.periodic(from: .now, by: 1)) { _ in
+                if SelectionWatcher.isTrusted {
+                    Label("Доступ к Универсальному доступу есть", systemImage: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                } else {
+                    HStack {
+                        Label("Нужно разрешение «Универсальный доступ» для NotchShelf", systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                        Spacer()
+                        Button("Открыть") { SelectionWatcher.openAccessibilitySettings() }
+                            .controlSize(.small)
+                    }
+                }
+            }
         }
     }
 }

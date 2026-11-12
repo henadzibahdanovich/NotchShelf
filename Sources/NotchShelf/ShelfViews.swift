@@ -6,6 +6,11 @@ struct ShelfActions {
     var openSettings: () -> Void
     var dragStarted: () -> Void
     var dragEnded: (ShotItem, Bool) -> Void
+    var openAsk: () -> Void
+    var closeAsk: () -> Void
+    /// Из плашки выделения: какой ИИ и (необязательно) быстрое действие.
+    var askAboutSelection: (AIProvider, String?) -> Void
+    var dismissSelection: () -> Void
 }
 
 /// Все модели, которые видит полка.
@@ -16,6 +21,8 @@ struct ShelfModels {
     let player: NowPlaying
     let timer: FocusTimer
     let downloads: DownloadProgressMonitor
+    let ask: AskModel
+    let settings: AppSettings
 }
 
 // MARK: - Корень
@@ -32,7 +39,22 @@ struct ShelfRootView: View {
             CollapsedIndicator(store: store, timer: models.timer, player: models.player,
                                downloads: models.downloads, layout: l)
 
-            if ui.expanded {
+            if ui.expanded && ui.mode == .selection {
+                SelectionBar(text: ui.selectionText, settings: models.settings,
+                             ask: actions.askAboutSelection, dismiss: actions.dismissSelection)
+                    .frame(width: ShelfLayout.selectionBarWidth, height: ShelfLayout.selectionBarHeight)
+                    .transition(.scale(scale: 0.6, anchor: .top).combined(with: .opacity))
+            } else if ui.expanded && ui.mode == .ask {
+                AskPanel(ask: models.ask, settings: models.settings,
+                         close: actions.closeAsk, openSettings: actions.openSettings)
+                    .frame(width: ShelfLayout.panelWidth, height: ShelfLayout.askPanelHeight)
+                    .transition(
+                        .asymmetric(
+                            insertion: .scale(scale: 0.55, anchor: .top).combined(with: .opacity),
+                            removal: .scale(scale: 0.85, anchor: .top).combined(with: .opacity)
+                        )
+                    )
+            } else if ui.expanded {
                 HubPanel(models: models, store: store, actions: actions)
                     .frame(width: ShelfLayout.panelWidth, height: ShelfLayout.panelHeight)
                     .transition(
@@ -46,6 +68,7 @@ struct ShelfRootView: View {
         }
         .frame(width: l.windowSize.width, height: l.windowSize.height, alignment: .top)
         .animation(.spring(response: 0.4, dampingFraction: 0.78), value: ui.expanded)
+        .animation(.spring(response: 0.4, dampingFraction: 0.82), value: ui.mode)
     }
 }
 
@@ -285,7 +308,7 @@ struct HubPanel: View {
             }
             .frame(height: ShelfLayout.widgetHeight)
 
-            PanelHeader(store: store, clipboard: models.clipboard, actions: actions)
+            PanelHeader(store: store, clipboard: models.clipboard, settings: models.settings, actions: actions)
 
             Group {
                 if store.filter == .clipboard {
@@ -472,6 +495,7 @@ private struct PresetChip: View {
 struct PanelHeader: View {
     @ObservedObject var store: ShelfStore
     @ObservedObject var clipboard: ClipboardHistory
+    @ObservedObject var settings: AppSettings
     let actions: ShelfActions
 
     private var canClear: Bool {
@@ -505,8 +529,14 @@ struct PanelHeader: View {
 
             GlassGroup(spacing: 6) {
                 HStack(spacing: 6) {
+                    if !settings.availableProviders.isEmpty {
+                        GlassIconButton(systemName: "sparkles",
+                                        help: "Спросить " + settings.availableProviders.map(\.title).joined(separator: " или ")) {
+                            actions.openAsk()
+                        }
+                    }
                     if canClear {
-                        GlassIconButton(systemName: "sparkles", help: "Очистить раздел (закреплённое останется)") {
+                        GlassIconButton(systemName: "xmark.bin", help: "Очистить раздел (закреплённое останется)") {
                             if store.filter == .clipboard { clipboard.clearUnpinned() } else { store.clearVisible() }
                         }
                     }
@@ -886,5 +916,81 @@ struct ClipCard: View {
         let time = mins < 1 ? "только что" : "\(ShotCard.duration(mins)) назад"
         if let app = entry.appName { return "\(app) · \(time)" }
         return time
+    }
+}
+
+// MARK: - Плашка при выделении текста
+
+struct SelectionBar: View {
+    let text: String
+    @ObservedObject var settings: AppSettings
+    let ask: (AIProvider, String?) -> Void
+    let dismiss: () -> Void
+
+    private var preview: String {
+        let flat = text.replacingOccurrences(of: "\n", with: " ")
+        return flat.count > 40 ? String(flat.prefix(40)) + "…" : flat
+    }
+
+    var body: some View {
+        let providers = settings.availableProviders
+        let main = settings.preferredProvider
+        HStack(spacing: 8) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.tint)
+            Text("«\(preview)»")
+                .font(.system(size: 11.5))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .frame(maxWidth: 170, alignment: .leading)
+
+            Divider().frame(height: 20)
+
+            ForEach(providers) { p in
+                SelectionPill(title: "Спросить \(p.title)") { ask(p, nil) }
+            }
+
+            if let main {
+                Divider().frame(height: 20)
+                GlassGroup(spacing: 4) {
+                    HStack(spacing: 4) {
+                        ForEach(AskModel.quickActions.prefix(3)) { action in
+                            GlassIconButton(systemName: action.icon, help: "\(action.title) — \(main.title)", size: 28) {
+                                ask(main, action.prompt)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(minLength: 0)
+            GlassIconButton(systemName: "xmark", help: "Скрыть", size: 24) { dismiss() }
+        }
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .glassBackground(Capsule())
+    }
+}
+
+private struct SelectionPill: View {
+    let title: String
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .padding(.horizontal, 11)
+                .frame(height: 28)
+                .foregroundStyle(.white)
+                .background(Capsule().fill(Color.accentColor.opacity(hovering ? 1 : 0.88)))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .scaleEffect(hovering ? 1.04 : 1)
+        .animation(.easeOut(duration: 0.12), value: hovering)
+        .onHover { hovering = $0 }
     }
 }

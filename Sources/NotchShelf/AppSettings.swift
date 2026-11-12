@@ -49,6 +49,15 @@ final class AppSettings: ObservableObject {
     @Published var clipboardLimit: Int { didSet { d.set(clipboardLimit, forKey: "clipboardLimit") } }
     @Published var showNowPlaying: Bool { didSet { d.set(showNowPlaying, forKey: "showNowPlaying") } }
 
+    // ИИ-помощник
+    @Published var defaultAIProvider: AIProvider { didSet { d.set(defaultAIProvider.rawValue, forKey: "defaultAIProvider") } }
+    @Published var claudeModel: String { didSet { d.set(claudeModel, forKey: "claudeModel") } }
+    @Published var openAIModel: String { didSet { d.set(openAIModel, forKey: "openAIModel") } }
+    /// Показывать островок при выделении текста в любом приложении.
+    @Published var showOnSelection: Bool { didSet { d.set(showOnSelection, forKey: "showOnSelection") } }
+    /// Для каких ИИ сохранён ключ.
+    @Published private(set) var connectedProviders: Set<AIProvider> = []
+
     // Общие
     @Published var peekOnCapture: Bool { didSet { d.set(peekOnCapture, forKey: "peekOnCapture") } }
     @Published var pinnedPaths: Set<String> { didSet { d.set(Array(pinnedPaths), forKey: "pinnedPaths") } }
@@ -79,6 +88,10 @@ final class AppSettings: ObservableObject {
             "clipboardEnabled": true,
             "clipboardLimit": 50,
             "showNowPlaying": true,
+            "defaultAIProvider": AIProvider.claude.rawValue,
+            "claudeModel": AIProvider.claude.defaultModel,
+            "openAIModel": AIProvider.chatgpt.defaultModel,
+            "showOnSelection": false,
         ])
         screenshotFolder = ScreenshotFolder(rawValue: d.string(forKey: "screenshotFolder") ?? "") ?? .downloads
         lifetimeMinutes = d.integer(forKey: "lifetimeMinutes")
@@ -93,7 +106,37 @@ final class AppSettings: ObservableObject {
         clipboardEnabled = d.bool(forKey: "clipboardEnabled")
         clipboardLimit = d.integer(forKey: "clipboardLimit")
         showNowPlaying = d.bool(forKey: "showNowPlaying")
+        defaultAIProvider = AIProvider(rawValue: d.string(forKey: "defaultAIProvider") ?? "") ?? .claude
+        claudeModel = d.string(forKey: "claudeModel") ?? AIProvider.claude.defaultModel
+        openAIModel = d.string(forKey: "openAIModel") ?? AIProvider.chatgpt.defaultModel
+        showOnSelection = d.bool(forKey: "showOnSelection")
         pinnedPaths = Set(d.stringArray(forKey: "pinnedPaths") ?? [])
+        refreshAIKeys()
+    }
+
+    /// Перечитать ключи из Связки ключей (после сохранения или удаления).
+    func refreshAIKeys() {
+        let connected = Set(AIProvider.allCases.filter { Keychain.get($0.keychainAccount) != nil })
+        if connected != connectedProviders { connectedProviders = connected }
+        ServicesMenuSync.apply(connected)
+    }
+
+    /// Подключённые ИИ в постоянном порядке: Claude, ChatGPT.
+    var availableProviders: [AIProvider] {
+        AIProvider.allCases.filter { connectedProviders.contains($0) }
+    }
+
+    /// ИИ по умолчанию, если у него есть ключ, иначе — первый подключённый.
+    var preferredProvider: AIProvider? {
+        connectedProviders.contains(defaultAIProvider) ? defaultAIProvider : availableProviders.first
+    }
+
+    func model(for provider: AIProvider) -> String {
+        provider == .claude ? claudeModel : openAIModel
+    }
+
+    func setModel(_ model: String, for provider: AIProvider) {
+        if provider == .claude { claudeModel = model } else { openAIModel = model }
     }
 
     func lifetime(for kind: ShelfKind) -> TimeInterval? {

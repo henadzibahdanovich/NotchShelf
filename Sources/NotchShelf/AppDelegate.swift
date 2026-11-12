@@ -1,14 +1,21 @@
 import AppKit
+import Combine
 import SwiftUI
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let settings = AppSettings.shared
     lazy var store = ShelfStore(settings: settings)
     lazy var clipboard = ClipboardHistory(settings: settings)
     lazy var player = NowPlaying(settings: settings)
     let timer = FocusTimer()
     let downloads = DownloadProgressMonitor()
+    lazy var ask = AskModel(settings: settings)
+    let services = ServiceProvider()
+    let selectionWatcher = SelectionWatcher()
+    private var askClaudeItem: NSMenuItem?
+    private var askChatGPTItem: NSMenuItem?
+    private var cancellables = Set<AnyCancellable>()
     var watchers: [FolderWatcher] = []
     var shelf: ShelfController?
     var statusItem: NSStatusItem?
@@ -30,13 +37,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let models = ShelfModels(store: store, clipboard: clipboard, player: player,
-                                 timer: timer, downloads: downloads)
+                                 timer: timer, downloads: downloads, ask: ask, settings: settings)
         shelf = ShelfController(models: models, settings: settings) { [weak self] in
             self?.openSettings()
         }
         store.restore()
         startWatchers()
         setupStatusItem()
+
+        // «Спросить Claude / ChatGPT» в меню Службы (правый клик по выделенному тексту)
+        services.onAsk = { [weak self] provider, text in
+            guard let self else { return }
+            // Ключ не подключён — открываем настройки вместо пустой панели
+            if self.settings.availableProviders.isEmpty { self.openSettings(); return }
+            self.shelf?.openAsk(provider: provider, context: text)
+        }
+        NSApp.servicesProvider = services
+        NSUpdateDynamicServices()
+
+        // Островок при выделении текста
+        selectionWatcher.onSelection = { [weak self] text in self?.shelf?.showSelectionBar(text: text) }
+        selectionWatcher.onMouseDown = { [weak self] in self?.shelf?.selectionMouseDown() }
+        settings.$showOnSelection
+            .removeDuplicates()
+            .sink { [weak self] on in
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated { self?.selectionWatcher.setEnabled(on) }
+                }
+            }
+            .store(in: &cancellables)
 
         if firstLaunch { openSettings() }
     }
@@ -84,6 +113,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let menu = NSMenu()
         menu.addItem(withTitle: "Показать полку", action: #selector(showShelf), keyEquivalent: "").target = self
+        let claudeItem = menu.addItem(withTitle: "Спросить Claude…", action: #selector(askClaude), keyEquivalent: "")
+        claudeItem.target = self
+        let chatGPTItem = menu.addItem(withTitle: "Спросить ChatGPT…", action: #selector(askChatGPT), keyEquivalent: "")
+        chatGPTItem.target = self
+        askClaudeItem = claudeItem
+        askChatGPTItem = chatGPTItem
+        menu.delegate = self
+        menu.addItem(.separator())
         menu.addItem(withTitle: "Открыть папку со скриншотами", action: #selector(openFolder), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Очистить полку", action: #selector(clearShelf), keyEquivalent: "").target = self
@@ -94,7 +131,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
     }
 
+    /// Перед открытием меню прячем «Спросить …» для ИИ без ключа.
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        askClaudeItem?.isHidden = !settings.connectedProviders.contains(.claude)
+        askChatGPTItem?.isHidden = !settings.connectedProviders.contains(.chatgpt)
+    }
+
     @objc func showShelf() { shelf?.showFromMenu() }
+    @objc func askClaude() { shelf?.openAsk(provider: .claude, context: "") }
+    @objc func askChatGPT() { shelf?.openAsk(provider: .chatgpt, context: "") }
     @objc func clearShelf() { store.clearUnpinned() }
     @objc func quit() { NSApp.terminate(nil) }
 
@@ -118,5 +163,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.makeKeyAndOrderFront(nil)
+    }
+}
+
+/// Обработчик пунктов «Спросить Claude» и «Спросить ChatGPT» в меню Службы macOS.
+final class ServiceProvider: NSObject {
+    var onAsk: ((AIProvider, String) -> Void)?
+
+    @objc func askClaude(_ pboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString>) {
+        handle(.claude, pboard)
+    }
+
+    @objc func askChatGPT(_ pboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString>) {
+        handle(.chatgpt, pboard)
+    }
+
+    private func handle(_ provider: AIProvider, _ pboard: NSPasteboard) {
+        let text = pboard.string(forType: .string) ?? ""
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated { self?.onAsk?(provider, text) }
+        }
     }
 }
