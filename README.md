@@ -85,6 +85,8 @@ swift build -c release
 
 Ad-hoc signing is not Developer ID signing or Apple notarization. The installer does not remove quarantine attributes or disable Gatekeeper. If macOS blocks a downloaded build, review the source and use the normal macOS security controls; no security-bypass command is included.
 
+If signing reports “resource fork, Finder information, or similar detritus not allowed” in an iCloud or other synced folder, move the checkout to a local folder outside that service and rebuild. Publication validation passed from a clean local checkout; the synced Documents folder added metadata during packaging.
+
 ## First launch, permissions, and cleanup
 
 **Review Settings before using the shelf with files you want to keep.** These are the current defaults in the source:
