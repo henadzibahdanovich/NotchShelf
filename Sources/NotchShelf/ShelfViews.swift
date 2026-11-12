@@ -702,15 +702,17 @@ struct ShotCard: View {
             }
             .padding(6)
         }
-        .overlay(
-            DragSource(
-                url: item.url,
-                image: item.thumbnail,
-                onDragStart: actions.dragStarted,
-                onDragEnd: { accepted in actions.dragEnded(item, accepted) },
-                onClick: {},
-                onDoubleClick: { store.open(item) }
-            )
+        .contentShape(shape)
+        .onTapGesture(count: 2) { store.open(item) }
+        .gesture(
+            DragGesture(minimumDistance: 4).onChanged { _ in
+                FileDragController.shared.begin(
+                    url: item.url,
+                    image: item.thumbnail,
+                    onStart: actions.dragStarted,
+                    onEnd: { accepted in actions.dragEnded(item, accepted) }
+                )
+            }
         )
         .shadow(color: .black.opacity(hovering ? 0.28 : 0.16), radius: hovering ? 10 : 5, y: hovering ? 5 : 2)
         .scaleEffect(hovering ? 1.035 : 1)

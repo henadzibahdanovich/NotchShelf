@@ -1,93 +1,61 @@
 import AppKit
 import SwiftUI
 
-/// Прозрачный слой поверх превью: тянет файл наружу и знает, приняли ли его.
-struct DragSource: NSViewRepresentable {
-    let url: URL
-    let image: NSImage?
-    var onDragStart: () -> Void
-    var onDragEnd: (_ accepted: Bool) -> Void
-    var onClick: () -> Void
-    var onDoubleClick: () -> Void
+/// Перетаскивание файла из полки наружу. Запускается жестом SwiftUI на карточке, а саму
+/// сессию ведёт AppKit — так мы узнаём, приняло ли файл другое приложение.
+/// (Отдельные AppKit-виды поверх каждой карточки не используются: внутри прокрутки и стеклянных
+/// контейнеров их положение не совпадает с карточками на экране.)
+@MainActor
+final class FileDragController: NSObject, NSDraggingSource {
+    static let shared = FileDragController()
+    private var active = false
+    private var onEnd: ((Bool) -> Void)?
+    private weak var sourceWindow: NSWindow?
 
-    func makeNSView(context: Context) -> DragSourceNSView {
-        let v = DragSourceNSView()
-        update(v)
-        return v
-    }
-
-    func updateNSView(_ nsView: DragSourceNSView, context: Context) {
-        update(nsView)
-    }
-
-    private func update(_ v: DragSourceNSView) {
-        v.url = url
-        v.image = image
-        v.onDragStart = onDragStart
-        v.onDragEnd = onDragEnd
-        v.onClick = onClick
-        v.onDoubleClick = onDoubleClick
-    }
-}
-
-final class DragSourceNSView: NSView, NSDraggingSource {
-    var url: URL?
-    var image: NSImage?
-    var onDragStart: (() -> Void)?
-    var onDragEnd: ((Bool) -> Void)?
-    var onClick: (() -> Void)?
-    var onDoubleClick: (() -> Void)?
-    private var mouseDownEvent: NSEvent?
-    private var didDrag = false
-
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-
-    override func resetCursorRects() {
-        addCursorRect(bounds, cursor: .openHand)
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        mouseDownEvent = event
-        didDrag = false
-        if event.clickCount == 2 { onDoubleClick?() }
-    }
-
-    override func mouseUp(with event: NSEvent) {
-        if !didDrag && event.clickCount == 1 { onClick?() }
-        mouseDownEvent = nil
-    }
-
-    override func mouseDragged(with event: NSEvent) {
-        guard !didDrag, let url, let down = mouseDownEvent else { return }
-        let dx = event.locationInWindow.x - down.locationInWindow.x
-        let dy = event.locationInWindow.y - down.locationInWindow.y
-        guard dx * dx + dy * dy > 9 else { return }
-        didDrag = true
+    /// Вызывать из DragGesture.onChanged — пока обрабатывается событие мыши.
+    func begin(url: URL, image: NSImage?, onStart: () -> Void, onEnd: @escaping (Bool) -> Void) {
+        guard !active,
+              let event = NSApp.currentEvent,
+              event.type == .leftMouseDragged || event.type == .leftMouseDown,
+              let window = event.window,
+              let view = window.contentView else { return }
+        active = true
+        self.onEnd = onEnd
+        sourceWindow = window
 
         let item = NSDraggingItem(pasteboardWriter: url as NSURL)
         let preview = image ?? NSWorkspace.shared.icon(forFile: url.path)
-        let size = fittedSize(preview.size, max: 160)
-        let local = convert(event.locationInWindow, from: nil)
-        item.setDraggingFrame(NSRect(x: local.x - size.width / 2, y: local.y - size.height / 2,
+        let size = Self.fittedSize(preview.size, max: 160)
+        let p = view.convert(event.locationInWindow, from: nil)
+        item.setDraggingFrame(NSRect(x: p.x - size.width / 2, y: p.y - size.height / 2,
                                      width: size.width, height: size.height),
                               contents: preview)
-        onDragStart?()
-        let session = beginDraggingSession(with: [item], event: down, source: self)
+        onStart()
+        let session = view.beginDraggingSession(with: [item], event: event, source: self)
         session.animatesToStartingPositionsOnCancelOrFail = true
     }
 
-    func draggingSession(_ session: NSDraggingSession,
-                         sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+    nonisolated func draggingSession(_ session: NSDraggingSession,
+                                     sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
         context == .outsideApplication ? [.copy, .generic] : .copy
     }
 
-    func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
-        // Брошено внутрь самой полки (например, в лоток) — это не «использование» файла
-        let droppedInside = window?.frame.contains(screenPoint) ?? false
-        onDragEnd?(operation != [] && !droppedInside)
+    nonisolated func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint,
+                                     operation: NSDragOperation) {
+        let accepted = operation != []
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                // Брошено внутрь самой полки (например, в лоток) — это не «использование» файла
+                let droppedInside = self.sourceWindow?.frame.contains(screenPoint) ?? false
+                let callback = self.onEnd
+                self.onEnd = nil
+                self.active = false
+                callback?(accepted && !droppedInside)
+            }
+        }
     }
 
-    private func fittedSize(_ s: NSSize, max m: CGFloat) -> NSSize {
+    private static func fittedSize(_ s: NSSize, max m: CGFloat) -> NSSize {
         guard s.width > 0, s.height > 0 else { return NSSize(width: m, height: m) }
         let k = min(m / s.width, m / s.height)
         return NSSize(width: s.width * k, height: s.height * k)
