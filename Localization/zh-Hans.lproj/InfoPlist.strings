@@ -1,0 +1,4 @@
+"NSDesktopFolderUsageDescription" = "NotchShelf 会留意桌面上的新截屏。";
+"NSDocumentsFolderUsageDescription" = "NotchShelf 会留意所选文件夹中的截屏。";
+"NSDownloadsFolderUsageDescription" = "NotchShelf 会显示“下载”中的新下载和截屏。";
+"NSAppleEventsUsageDescription" = "NotchShelf 会显示并控制“音乐”和 Spotify 的播放。";

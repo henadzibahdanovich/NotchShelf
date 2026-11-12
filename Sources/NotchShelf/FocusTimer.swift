@@ -10,7 +10,7 @@ final class FocusTimer: ObservableObject {
     }
 
     static let presets: [(minutes: Int, hint: String)] = [
-        (5, "Короткий перерыв"), (15, "Длинный перерыв"), (25, "Фокус-сессия"), (50, "Глубокая работа"),
+        (5, L("Short break")), (15, L("Long break")), (25, L("Focus session")), (50, L("Deep work")),
     ]
 
     @Published private(set) var state: State = .idle

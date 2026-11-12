@@ -1,0 +1,4 @@
+"NSDesktopFolderUsageDescription" = "NotchShelf surveille les nouvelles captures sur votre Bureau.";
+"NSDocumentsFolderUsageDescription" = "NotchShelf surveille les captures dans le dossier choisi.";
+"NSDownloadsFolderUsageDescription" = "NotchShelf affiche les nouveaux téléchargements et captures du dossier Téléchargements.";
+"NSAppleEventsUsageDescription" = "NotchShelf affiche et contrôle la lecture dans Musique et Spotify.";

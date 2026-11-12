@@ -323,6 +323,8 @@ struct HubPanel: View {
         }
         .padding(ShelfLayout.panelPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // Содержимое не выходит за скруглённые края панели
+        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
         .glassBackground(RoundedRectangle(cornerRadius: 30, style: .continuous))
         .overlay {
             if dropTargeted {
@@ -347,7 +349,7 @@ private struct DropHint: View {
             shape.strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [7, 5]))
             VStack(spacing: 6) {
                 Image(systemName: "tray.and.arrow.down.fill").font(.system(size: 26, weight: .medium))
-                Text("Отпустите, чтобы положить в лоток").font(.system(size: 13, weight: .semibold))
+                Text(L("Release to drop into the tray")).font(.system(size: 13, weight: .semibold))
             }
             .foregroundStyle(Color.accentColor)
         }
@@ -389,14 +391,14 @@ struct NowPlayingWidget: View {
             .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
             .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
             .onTapGesture { player.openPlayer() }
-            .help("Открыть плеер")
+            .help(L("Open player"))
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(track?.title ?? "Ничего не играет")
+                Text(track?.title ?? L("Nothing playing"))
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(track == nil ? Color.secondary : Color.primary)
                     .lineLimit(1)
-                Text(track?.artist ?? "Музыка, Spotify и другие плееры")
+                Text(track?.artist ?? L("Music, Spotify and other players"))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -404,10 +406,10 @@ struct NowPlayingWidget: View {
             Spacer(minLength: 4)
 
             HStack(spacing: 6) {
-                GlassIconButton(systemName: "backward.fill", help: "Предыдущий трек") { player.previous() }
+                GlassIconButton(systemName: "backward.fill", help: L("Previous track")) { player.previous() }
                 GlassIconButton(systemName: playing ? "pause.fill" : "play.fill",
-                                help: playing ? "Пауза" : "Играть", size: 32) { player.playPause() }
-                GlassIconButton(systemName: "forward.fill", help: "Следующий трек") { player.next() }
+                                help: playing ? L("Pause") : L("Play"), size: 32) { player.playPause() }
+                GlassIconButton(systemName: "forward.fill", help: L("Next track")) { player.next() }
             }
             .disabled(track == nil)
             .opacity(track == nil ? 0.45 : 1)
@@ -436,7 +438,7 @@ struct TimerWidget: View {
                         .font(.system(size: 18, weight: .semibold, design: .rounded))
                         .monospacedDigit()
                         .contentTransition(.numericText(countsDown: true))
-                    Text(timer.isRunning ? "Идёт · \(Int(timer.total / 60)) мин" : "Пауза")
+                    Text(timer.isRunning ? L("Running · %@ min", "\(Int(timer.total / 60))") : L("Pause"))
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -444,9 +446,9 @@ struct TimerWidget: View {
                 Spacer(minLength: 0)
                 HStack(spacing: 6) {
                     GlassIconButton(systemName: timer.isRunning ? "pause.fill" : "play.fill",
-                                    help: timer.isRunning ? "Пауза" : "Продолжить") { timer.togglePause() }
-                    GlassIconButton(systemName: "goforward.5", help: "Добавить 5 минут") { timer.addFiveMinutes() }
-                    GlassIconButton(systemName: "xmark", help: "Остановить", role: .destructive) { timer.stop() }
+                                    help: timer.isRunning ? L("Pause") : L("Resume")) { timer.togglePause() }
+                    GlassIconButton(systemName: "goforward.5", help: L("Add 5 minutes")) { timer.addFiveMinutes() }
+                    GlassIconButton(systemName: "xmark", help: L("Stop"), role: .destructive) { timer.stop() }
                 }
             } else {
                 ZStack {
@@ -455,7 +457,7 @@ struct TimerWidget: View {
                 }
                 .frame(width: 36, height: 36)
 
-                Text("Таймер")
+                Text(L("Timer"))
                     .font(.system(size: 13, weight: .semibold))
                 Spacer(minLength: 0)
                 HStack(spacing: 5) {
@@ -487,8 +489,8 @@ private struct PresetChip: View {
         .glassBackground(Capsule(), interactive: true)
         .scaleEffect(hovering ? 1.08 : 1)
         .animation(.easeOut(duration: 0.12), value: hovering)
-        .onHover { hovering = $0 }
-        .help("\(hint) — \(minutes) мин")
+        .onReliableHover { hovering = $0 }
+        .help(L("%@ — %@ min", "\(hint)", "\(minutes)"))
     }
 }
 
@@ -508,7 +510,7 @@ struct PanelHeader: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Picker("Раздел", selection: $store.filter) {
+            Picker(L("Section"), selection: $store.filter) {
                 ForEach(ShelfFilter.allCases) { f in
                     Text(f.title).tag(f)
                 }
@@ -533,16 +535,16 @@ struct PanelHeader: View {
                 HStack(spacing: 6) {
                     if !settings.availableProviders.isEmpty {
                         GlassIconButton(systemName: "sparkles",
-                                        help: "Спросить " + settings.availableProviders.map(\.title).joined(separator: " или ")) {
+                                        help: L("Ask %@", settings.availableProviders.map(\.title).joined(separator: L(" or ")))) {
                             actions.openAsk()
                         }
                     }
                     if canClear {
-                        GlassIconButton(systemName: "xmark.bin", help: "Очистить раздел (закреплённое останется)") {
+                        GlassIconButton(systemName: "xmark.bin", help: L("Clear section (pinned items stay)")) {
                             if store.filter == .clipboard { clipboard.clearUnpinned() } else { store.clearVisible() }
                         }
                     }
-                    GlassIconButton(systemName: "gearshape", help: "Настройки") { actions.openSettings() }
+                    GlassIconButton(systemName: "gearshape", help: L("Settings")) { actions.openSettings() }
                 }
             }
         }
@@ -580,12 +582,14 @@ struct FilesRow: View {
                                 .transition(.scale(scale: 0.7).combined(with: .opacity))
                         }
                     }
-                    .padding(.vertical, 2)
+                    // Отступы внутри прокрутки: место для увеличения при наведении и тени
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, ShelfLayout.panelPadding)
                     .animation(.spring(response: 0.42, dampingFraction: 0.8), value: items.map(\.id))
                     .animation(.spring(response: 0.42, dampingFraction: 0.8), value: active.map(\.id))
                 }
             }
-            .scrollClipDisabled()
+            .padding(.horizontal, -ShelfLayout.panelPadding)
         }
     }
 }
@@ -595,11 +599,11 @@ struct EmptyState: View {
 
     private var content: (icon: String, title: String, subtitle: String) {
         switch filter {
-        case .all: return ("tray", "Полка пуста", "Сделайте скриншот, скачайте файл или перетащите что-нибудь сюда")
-        case .screenshots: return ("camera.viewfinder", "Нет скриншотов", "⇧⌘4 — область, ⇧⌘3 — весь экран")
-        case .downloads: return ("arrow.down.circle", "Нет новых загрузок", "Скачанные файлы появятся здесь")
-        case .tray: return ("tray.and.arrow.down", "Лоток пуст", "Перетащите сюда файлы, ссылки, картинки или текст")
-        case .clipboard: return ("doc.on.clipboard", "История пуста", "Скопируйте что-нибудь — оно появится здесь")
+        case .all: return ("tray", L("The shelf is empty"), L("Take a screenshot, download a file or drop something here"))
+        case .screenshots: return ("camera.viewfinder", L("No screenshots"), L("⇧⌘4 — selection, ⇧⌘3 — entire screen"))
+        case .downloads: return ("arrow.down.circle", L("No new downloads"), L("Downloaded files will appear here"))
+        case .tray: return ("tray.and.arrow.down", L("The tray is empty"), L("Drop files, links, images or text here"))
+        case .clipboard: return ("doc.on.clipboard", L("No history yet"), L("Copy something and it will appear here"))
         }
     }
 
@@ -640,7 +644,7 @@ struct ActiveDownloadCard: View {
                 .frame(height: 26)
         }
         .frame(width: ShelfLayout.cardWidth)
-        .help("Загружается: \(download.name)")
+        .help(L("Downloading: %@", "\(download.name)"))
     }
 }
 
@@ -659,7 +663,7 @@ struct ShotCard: View {
             footer.frame(height: 26)
         }
         .frame(width: ShelfLayout.cardWidth)
-        .onHover { hovering = $0 }
+        .onReliableHover { hovering = $0 }
         .animation(.easeOut(duration: 0.16), value: hovering)
     }
 
@@ -714,7 +718,7 @@ struct ShotCard: View {
     }
 
     private var helpText: String {
-        let hint = "Перетащите, чтобы вставить. Двойной клик — открыть"
+        let hint = L("Drag to use it elsewhere. Double-click to open")
         return item.kind == .screenshot ? hint : item.name + "\n" + hint
     }
 
@@ -761,30 +765,30 @@ struct ShotCard: View {
     private var buttons: some View {
         let s = buttonSize
         if canAsk {
-            GlassIconButton(systemName: "sparkles", help: "Спросить ИИ про этот файл", size: s) { actions.askAboutFile(item) }
+            GlassIconButton(systemName: "sparkles", help: L("Ask AI about this file"), size: s) { actions.askAboutFile(item) }
         }
         switch item.kind {
         case .screenshot:
-            GlassIconButton(systemName: "doc.on.doc", help: "Скопировать", size: s) { store.copy(item) }
+            GlassIconButton(systemName: "doc.on.doc", help: L("Copy"), size: s) { store.copy(item) }
             if item.isImage {
-                GlassIconButton(systemName: "text.viewfinder", help: "Скопировать текст со скриншота", size: s) { store.copyText(item) }
+                GlassIconButton(systemName: "text.viewfinder", help: L("Copy text from screenshot"), size: s) { store.copyText(item) }
             } else {
-                GlassIconButton(systemName: "folder", help: "Показать в Finder", size: s) { store.revealInFinder(item) }
+                GlassIconButton(systemName: "folder", help: L("Show in Finder"), size: s) { store.revealInFinder(item) }
             }
             pinButton(size: s)
-            GlassIconButton(systemName: "trash", help: "В Корзину", role: .destructive, size: s) { store.delete(item) }
+            GlassIconButton(systemName: "trash", help: L("Move to Trash"), role: .destructive, size: s) { store.delete(item) }
         case .download:
-            GlassIconButton(systemName: "folder", help: "Показать в Finder", size: s) { store.revealInFinder(item) }
-            GlassIconButton(systemName: "xmark", help: "Убрать с полки (файл останется)", size: s) { store.dismiss(item) }
+            GlassIconButton(systemName: "folder", help: L("Show in Finder"), size: s) { store.revealInFinder(item) }
+            GlassIconButton(systemName: "xmark", help: L("Remove from shelf (file stays)"), size: s) { store.dismiss(item) }
             pinButton(size: s)
-            GlassIconButton(systemName: "trash", help: "В Корзину", role: .destructive, size: s) { store.delete(item) }
+            GlassIconButton(systemName: "trash", help: L("Move to Trash"), role: .destructive, size: s) { store.delete(item) }
         case .tray:
-            GlassIconButton(systemName: "doc.on.doc", help: "Скопировать", size: s) { store.copy(item) }
+            GlassIconButton(systemName: "doc.on.doc", help: L("Copy"), size: s) { store.copy(item) }
             if !item.owned {
-                GlassIconButton(systemName: "folder", help: "Показать в Finder", size: s) { store.revealInFinder(item) }
+                GlassIconButton(systemName: "folder", help: L("Show in Finder"), size: s) { store.revealInFinder(item) }
             }
             GlassIconButton(systemName: "xmark",
-                            help: item.owned ? "Убрать из лотка" : "Убрать из лотка (файл останется на месте)", size: s) {
+                            help: item.owned ? L("Remove from tray") : L("Remove from tray (file stays in place)"), size: s) {
                 store.dismiss(item)
             }
         }
@@ -792,25 +796,25 @@ struct ShotCard: View {
 
     private func pinButton(size: CGFloat) -> some View {
         GlassIconButton(systemName: item.isPinned ? "pin.slash" : "pin",
-                        help: item.isPinned ? "Открепить" : "Закрепить — не убирать автоматически", size: size) {
+                        help: item.isPinned ? L("Unpin") : L("Pin — don’t remove automatically"), size: size) {
             store.togglePin(item)
         }
     }
 
     private func statusText(now: Date) -> String {
-        if item.isPinned { return "Закреплён" }
+        if item.isPinned { return L("Pinned") }
         guard let left = store.remainingTime(for: item, now: now) else {
             let mins = Int(now.timeIntervalSince(item.addedAt) / 60)
-            return mins < 1 ? "Только что" : "\(Self.duration(mins)) назад"
+            return mins < 1 ? L("Just now") : L("%@ ago", "\(Self.duration(mins))")
         }
         let mins = Int(ceil(left / 60))
-        return left < 60 ? "Удалится через минуту" : "Ещё \(Self.duration(mins))"
+        return left < 60 ? L("Deleted in a minute") : L("%@ left", "\(Self.duration(mins))")
     }
 
     static func duration(_ minutes: Int) -> String {
-        if minutes < 60 { return "\(minutes) мин" }
+        if minutes < 60 { return L("%@ min", "\(minutes)") }
         let h = minutes / 60, m = minutes % 60
-        return m == 0 ? "\(h) ч" : "\(h) ч \(m) мин"
+        return m == 0 ? L("%@ h", "\(h)") : L("%@ h %@ min", "\(h)", "\(m)")
     }
 }
 
@@ -831,11 +835,12 @@ struct ClipboardRow: View {
                                 .transition(.scale(scale: 0.7).combined(with: .opacity))
                         }
                     }
-                    .padding(.vertical, 2)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, ShelfLayout.panelPadding)
                     .animation(.spring(response: 0.42, dampingFraction: 0.8), value: clipboard.entries.map(\.id))
                 }
             }
-            .scrollClipDisabled()
+            .padding(.horizontal, -ShelfLayout.panelPadding)
         }
     }
 }
@@ -851,11 +856,11 @@ struct ClipCard: View {
             preview
                 .onTapGesture { clipboard.copy(entry) }
                 .onDrag { dragProvider() }
-                .help("Клик — скопировать. Можно перетащить")
+                .help(L("Click to copy. You can also drag it"))
             footer.frame(height: 26)
         }
         .frame(width: ShelfLayout.cardWidth)
-        .onHover { hovering = $0 }
+        .onReliableHover { hovering = $0 }
         .animation(.easeOut(duration: 0.16), value: hovering)
         .task(id: entry.id) {
             if let url = entry.imageURL { image = NSImage(contentsOf: url) }
@@ -909,10 +914,10 @@ struct ClipCard: View {
         ZStack {
             if hovering {
                 HStack(spacing: 6) {
-                    GlassIconButton(systemName: "doc.on.doc", help: "Скопировать") { clipboard.copy(entry) }
+                    GlassIconButton(systemName: "doc.on.doc", help: L("Copy")) { clipboard.copy(entry) }
                     GlassIconButton(systemName: entry.isPinned ? "pin.slash" : "pin",
-                                    help: entry.isPinned ? "Открепить" : "Закрепить") { clipboard.togglePin(entry) }
-                    GlassIconButton(systemName: "trash", help: "Удалить из истории", role: .destructive) {
+                                    help: entry.isPinned ? L("Unpin") : L("Pin")) { clipboard.togglePin(entry) }
+                    GlassIconButton(systemName: "trash", help: L("Remove from history"), role: .destructive) {
                         clipboard.remove(entry)
                     }
                 }
@@ -932,7 +937,7 @@ struct ClipCard: View {
 
     private func subtitle(now: Date) -> String {
         let mins = Int(now.timeIntervalSince(entry.date) / 60)
-        let time = mins < 1 ? "только что" : "\(ShotCard.duration(mins)) назад"
+        let time = mins < 1 ? L("just now") : L("%@ ago", "\(ShotCard.duration(mins))")
         if let app = entry.appName { return "\(app) · \(time)" }
         return time
     }
@@ -967,7 +972,7 @@ struct SelectionBar: View {
             Divider().frame(height: 20)
 
             ForEach(providers) { p in
-                SelectionPill(title: "Спросить \(p.title)") { ask(p, nil) }
+                SelectionPill(title: L("Ask %@", "\(p.title)")) { ask(p, nil) }
             }
 
             if let main {
@@ -984,7 +989,7 @@ struct SelectionBar: View {
             }
 
             Spacer(minLength: 0)
-            GlassIconButton(systemName: "xmark", help: "Скрыть", size: 24) { dismiss() }
+            GlassIconButton(systemName: "xmark", help: L("Hide"), size: 24) { dismiss() }
         }
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1010,6 +1015,6 @@ private struct SelectionPill: View {
         .buttonStyle(.plain)
         .scaleEffect(hovering ? 1.04 : 1)
         .animation(.easeOut(duration: 0.12), value: hovering)
-        .onHover { hovering = $0 }
+        .onReliableHover { hovering = $0 }
     }
 }

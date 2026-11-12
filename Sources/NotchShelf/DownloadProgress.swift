@@ -93,11 +93,11 @@ final class DownloadProgressMonitor: ObservableObject {
     }
 
     nonisolated static func displayName(for url: URL?) -> String {
-        guard var url else { return "Загрузка" }
+        guard var url else { return L("Download") }
         while FolderWatcher.partialExtensions.contains(url.pathExtension.lowercased()) {
             url.deletePathExtension()
         }
         let name = url.lastPathComponent
-        return name.isEmpty ? "Загрузка" : name
+        return name.isEmpty ? L("Download") : name
     }
 }

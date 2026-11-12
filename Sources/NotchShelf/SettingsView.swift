@@ -6,12 +6,12 @@ struct SettingsView: View {
     var onFoldersChanged: () -> Void
 
     private let screenshotLifetimes: [(String, Int)] = [
-        ("Через 15 минут", 15), ("Через 1 час", 60), ("Через 3 часа", 180),
-        ("Через 24 часа", 1440), ("Никогда", 0),
+        (L("After 15 minutes"), 15), (L("After 1 hour"), 60), (L("After 3 hours"), 180),
+        (L("After 24 hours"), 1440), (L("Never"), 0),
     ]
     private let downloadLifetimes: [(String, Int)] = [
-        ("Через 1 час", 60), ("Через 3 часа", 180), ("Через 24 часа", 1440),
-        ("Через 3 дня", 4320), ("Никогда", 0),
+        (L("After 1 hour"), 60), (L("After 3 hours"), 180), (L("After 24 hours"), 1440),
+        (L("After 3 days"), 4320), (L("Never"), 0),
     ]
 
     var body: some View {
@@ -25,7 +25,7 @@ struct SettingsView: View {
                         .glassBackground(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     VStack(alignment: .leading, spacing: 3) {
                         Text("NotchShelf").font(.title3.weight(.semibold))
-                        Text("Новые скриншоты и загрузки появляются у чёлки. Перетащите файл куда нужно — полка уберёт его сама.")
+                        Text(L("New screenshots and downloads appear at the notch. Drag a file where you need it — the shelf cleans up after itself."))
                             .font(.callout)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -37,7 +37,7 @@ struct SettingsView: View {
             Section {
                 // Выбор по умолчанию имеет смысл, только когда подключены оба
                 if settings.availableProviders.count > 1 {
-                    Picker("По умолчанию", selection: $settings.defaultAIProvider) {
+                    Picker(L("Default"), selection: $settings.defaultAIProvider) {
                         ForEach(settings.availableProviders) { Text($0.title).tag($0) }
                     }
                 }
@@ -45,94 +45,94 @@ struct SettingsView: View {
                 AIKeyRow(provider: .chatgpt, settings: settings)
                 SelectionToggleRow(settings: settings)
             } header: {
-                Text("Спросить Claude и ChatGPT")
+                Text(L("Ask Claude and ChatGPT"))
             } footer: {
-                Text("Пункты «Спросить …» появляются только для ИИ с подключённым ключом. Выделите текст → правый клик → Службы, или включите островок при выделении. Ключи хранятся в Связке ключей.")
+                Text(L("“Ask …” items appear only for AIs with a connected key. Select text → right-click → Services, or turn on the island on selection. Keys are stored in the Keychain."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Section("Скриншоты") {
-                Picker("Сохранять в", selection: $settings.screenshotFolder) {
+            Section(L("Screenshots")) {
+                Picker(L("Save to"), selection: $settings.screenshotFolder) {
                     ForEach(ScreenshotFolder.allCases) { Text($0.title).tag($0) }
                 }
-                Picker("Удалять автоматически", selection: $settings.lifetimeMinutes) {
+                Picker(L("Delete automatically"), selection: $settings.lifetimeMinutes) {
                     ForEach(screenshotLifetimes, id: \.1) { Text($0.0).tag($0.1) }
                 }
                 Toggle(isOn: $settings.deleteAfterDrag) {
-                    Text("Удалять после перетаскивания")
-                    Text("Скриншот уходит в Корзину, когда вы перетащили его в другое приложение.")
+                    Text(L("Delete after dragging out"))
+                    Text(L("A screenshot moves to the Trash once you drag it into another app."))
                 }
                 Toggle(isOn: $settings.hideSystemThumbnail) {
-                    Text("Скрыть миниатюру в углу экрана")
-                    Text("Без неё скриншот появляется на полке мгновенно.")
+                    Text(L("Hide the corner thumbnail"))
+                    Text(L("Without it, screenshots appear on the shelf instantly."))
                 }
             }
 
-            Section("Загрузки") {
+            Section(L("Downloads")) {
                 Toggle(isOn: $settings.trackDownloads) {
-                    Text("Показывать новые загрузки")
-                    Text("Всё, что появилось в папке «Загрузки», попадает на полку.")
+                    Text(L("Show new downloads"))
+                    Text(L("Anything that appears in your Downloads folder lands on the shelf."))
                 }
                 Group {
-                    Picker("Убирать с полки", selection: $settings.downloadShelfMinutes) {
+                    Picker(L("Remove from shelf"), selection: $settings.downloadShelfMinutes) {
                         ForEach(downloadLifetimes, id: \.1) { Text($0.0).tag($0.1) }
                     }
                     Toggle(isOn: $settings.trashDownloadsOnExpire) {
-                        Text("При этом удалять файл")
-                        Text("Выключено — файл остаётся в «Загрузках», уходит только с полки.")
+                        Text(L("Also delete the file"))
+                        Text(L("When off, the file stays in Downloads and only leaves the shelf."))
                     }
                     Toggle(isOn: $settings.trashDownloadsAfterDrag) {
-                        Text("Удалять файл после перетаскивания")
-                        Text("Удобно для одноразовых файлов: перетащил — и забыл.")
+                        Text(L("Delete file after dragging out"))
+                        Text(L("Handy for one-off files: drag it out and forget it."))
                     }
                 }
                 .disabled(!settings.trackDownloads)
             }
 
-            Section("Лоток") {
+            Section(L("Tray")) {
                 Toggle(isOn: $settings.trayRemoveAfterDrag) {
-                    Text("Убирать из лотка после перетаскивания")
-                    Text("Положили файл в лоток, перетащили куда нужно — он исчезает из лотка. Сам файл не удаляется.")
+                    Text(L("Remove from tray after dragging out"))
+                    Text(L("Drop a file in the tray, drag it where you need it, and it leaves the tray. The file itself isn’t deleted."))
                 }
             }
 
-            Section("Буфер обмена") {
+            Section(L("Clipboard history")) {
                 Toggle(isOn: $settings.clipboardEnabled) {
-                    Text("Сохранять историю буфера обмена")
-                    Text("Текст и картинки. Помеченные секретными данные пропускаются; секреты без такой метки могут сохраниться.")
+                    Text(L("Keep clipboard history"))
+                    Text(L("Text and images. Content marked as confidential is skipped; secrets without that marker may still be saved."))
                 }
-                Picker("Хранить последних", selection: $settings.clipboardLimit) {
+                Picker(L("Keep last"), selection: $settings.clipboardLimit) {
                     ForEach([20, 50, 100, 200], id: \.self) { Text("\($0)").tag($0) }
                 }
                 .disabled(!settings.clipboardEnabled)
             }
 
-            Section("Музыка") {
+            Section(L("Music")) {
                 Toggle(isOn: $settings.showNowPlaying) {
-                    Text("Показывать, что играет")
-                    Text("Музыка и Spotify. При первом запуске macOS спросит разрешение на управление плеером.")
+                    Text(L("Show Now Playing"))
+                    Text(L("Music and Spotify. On first use, macOS will ask for permission to control the player."))
                 }
             }
 
-            Section("Общие") {
-                Toggle("Показывать полку при новом файле", isOn: $settings.peekOnCapture)
-                Toggle("Открывать при входе в систему", isOn: Binding(
+            Section(L("General")) {
+                Toggle(L("Reveal the shelf for new files"), isOn: $settings.peekOnCapture)
+                Toggle(L("Open at login"), isOn: Binding(
                     get: { settings.launchAtLogin },
                     set: { settings.launchAtLogin = $0 }
                 ))
-                LabeledContent("Папка со скриншотами") {
-                    Button("Показать в Finder") {
+                LabeledContent(L("Screenshots folder")) {
+                    Button(L("Show in Finder")) {
                         NSWorkspace.shared.open(settings.screenshotFolder.url)
                     }
                 }
             }
 
-            Section("Сочетания клавиш macOS") {
-                LabeledContent("Весь экран", value: "⇧⌘3")
-                LabeledContent("Область", value: "⇧⌘4")
-                LabeledContent("Окно", value: "⇧⌘4, затем пробел")
-                LabeledContent("Запись экрана и параметры", value: "⇧⌘5")
+            Section(L("macOS shortcuts")) {
+                LabeledContent(L("Entire screen"), value: "⇧⌘3")
+                LabeledContent(L("Selection"), value: "⇧⌘4")
+                LabeledContent(L("Window"), value: L("⇧⌘4, then Space"))
+                LabeledContent(L("Screen recording and options"), value: "⇧⌘5")
             }
         }
         .formStyle(.grouped)
@@ -171,15 +171,15 @@ private struct AIKeyRow: View {
     @ViewBuilder
     private var content: some View {
         if hasKey {
-            LabeledContent("Ключ \(provider.title)") {
+            LabeledContent(L("%@ key", "\(provider.title)")) {
                 HStack(spacing: 8) {
                     if checking {
                         ProgressView().controlSize(.small)
                     } else if status == nil {
-                        Label("Работает", systemImage: "checkmark.circle.fill")
+                        Label(L("Working"), systemImage: "checkmark.circle.fill")
                             .foregroundStyle(.green)
                     }
-                    Button("Удалить") {
+                    Button(L("Delete")) {
                         Keychain.delete(provider.keychainAccount)
                         settings.refreshAIKeys()
                         hasKey = false
@@ -188,24 +188,24 @@ private struct AIKeyRow: View {
                     }
                 }
             }
-            Picker("Модель \(provider.title)", selection: modelBinding) {
+            Picker(L("%@ model", "\(provider.title)"), selection: modelBinding) {
                 ForEach(modelOptions, id: \.self) { Text($0).tag($0) }
             }
             if let status {
                 Text(status).font(.caption).foregroundStyle(.orange)
             }
         } else {
-            LabeledContent("Ключ \(provider.title)") {
+            LabeledContent(L("%@ key", "\(provider.title)")) {
                 HStack(spacing: 8) {
-                    SecureField("Вставьте ключ", text: $draft)
+                    SecureField(L("Paste your key"), text: $draft)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 200)
                         .onSubmit(save)
-                    Button("Сохранить", action: save)
+                    Button(L("Save"), action: save)
                         .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
-            Link("Где взять ключ \(provider.title) →", destination: provider.keyPageURL)
+            Link(L("Get a %@ key →", "\(provider.title)"), destination: provider.keyPageURL)
                 .font(.caption)
         }
     }
@@ -243,7 +243,7 @@ private struct AIKeyRow: View {
                 settings.setModel(best, for: provider)
             }
         } catch {
-            status = "Не удалось проверить ключ: " + ((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+            status = L("Couldn’t verify the key: %@", (error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
         }
     }
 
@@ -261,8 +261,8 @@ private struct SelectionToggleRow: View {
 
     var body: some View {
         Toggle(isOn: $settings.showOnSelection) {
-            Text("Показывать островок при выделении текста")
-            Text("Выделили текст в любом приложении — у чёлки появляются кнопки «Спросить» и быстрые действия.")
+            Text(L("Show the island when text is selected"))
+            Text(L("Select text in any app and “Ask” buttons with quick actions appear at the notch."))
         }
         .disabled(settings.availableProviders.isEmpty)
 
@@ -270,16 +270,16 @@ private struct SelectionToggleRow: View {
             // Статус доступа обновляется раз в секунду, пока открыты настройки
             TimelineView(.periodic(from: .now, by: 1)) { _ in
                 if SelectionWatcher.isTrusted {
-                    Label("Доступ к Универсальному доступу есть", systemImage: "checkmark.circle.fill")
+                    Label(L("Accessibility access granted"), systemImage: "checkmark.circle.fill")
                         .font(.caption)
                         .foregroundStyle(.green)
                 } else {
                     HStack {
-                        Label("Нужно разрешение «Универсальный доступ» для NotchShelf", systemImage: "exclamationmark.triangle.fill")
+                        Label(L("NotchShelf needs Accessibility permission"), systemImage: "exclamationmark.triangle.fill")
                             .font(.caption)
                             .foregroundStyle(.orange)
                         Spacer()
-                        Button("Открыть") { SelectionWatcher.openAccessibilitySettings() }
+                        Button(L("Open")) { SelectionWatcher.openAccessibilitySettings() }
                             .controlSize(.small)
                     }
                 }

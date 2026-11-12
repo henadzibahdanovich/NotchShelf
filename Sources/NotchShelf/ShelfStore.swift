@@ -11,11 +11,11 @@ enum ShelfFilter: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .all: return "Все"
-        case .screenshots: return "Скриншоты"
-        case .downloads: return "Загрузки"
-        case .tray: return "Лоток"
-        case .clipboard: return "Буфер"
+        case .all: return L("All")
+        case .screenshots: return L("Screenshots")
+        case .downloads: return L("Downloads")
+        case .tray: return L("Tray")
+        case .clipboard: return L("Clipboard")
         }
     }
 }
@@ -146,7 +146,7 @@ final class ShelfStore: ObservableObject {
         items[idx].isPinned.toggle()
         if items[idx].isPinned { settings.pinnedPaths.insert(item.url.path) }
         else { settings.pinnedPaths.remove(item.url.path) }
-        showToast(items[idx].isPinned ? "Закреплено — не уйдёт с полки само" : "Откреплено")
+        showToast(items[idx].isPinned ? L("Pinned — it won’t leave the shelf on its own") : L("Unpinned"))
     }
 
     /// В Корзину (явное действие пользователя).
@@ -192,7 +192,7 @@ final class ShelfStore: ObservableObject {
         // Текст и ссылки из лотка копируем как текст
         if item.owned, let text = Self.textContent(of: item.url) {
             pb.setString(text, forType: .string)
-            showToast("Скопировано в буфер обмена")
+            showToast(L("Copied to clipboard"))
             return
         }
         let entry = NSPasteboardItem()
@@ -204,20 +204,20 @@ final class ShelfStore: ObservableObject {
         }
         entry.setString(item.url.absoluteString, forType: .fileURL)
         pb.writeObjects([entry])
-        showToast("Скопировано в буфер обмена")
+        showToast(L("Copied to clipboard"))
     }
 
     func copyText(_ item: ShotItem) {
-        showToast("Распознаю текст…", sticky: true)
+        showToast(L("Recognizing text…"), sticky: true)
         TextRecognizer.recognize(url: item.url) { [weak self] text in
             MainActor.assumeIsolated {
                 guard let self else { return }
                 if let text, !text.isEmpty {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(text, forType: .string)
-                    self.showToast("Текст скопирован")
+                    self.showToast(L("Text copied"))
                 } else {
-                    self.showToast("Текст не найден")
+                    self.showToast(L("No text found"))
                 }
             }
         }
@@ -245,7 +245,7 @@ final class ShelfStore: ObservableObject {
                 dismiss(item)
             }
         }
-        showToast(trashed > 0 ? "Полка очищена · в Корзине: \(trashed)" : "Полка очищена")
+        showToast(trashed > 0 ? L("Shelf cleared · moved to Trash: %@", "\(trashed)") : L("Shelf cleared"))
     }
 
     func clearUnpinned() {
@@ -292,7 +292,7 @@ final class ShelfStore: ObservableObject {
                 provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, _ in
                     guard let data, let png = NSImage(data: data)?.pngData else { return }
                     DispatchQueue.main.async {
-                        MainActor.assumeIsolated { self.saveToTray(data: png, name: "Изображение", ext: "png") }
+                        MainActor.assumeIsolated { self.saveToTray(data: png, name: L("Image"), ext: "png") }
                     }
                 }
             } else if provider.canLoadObject(ofClass: URL.self) {
@@ -309,7 +309,7 @@ final class ShelfStore: ObservableObject {
                     guard let text, !text.isEmpty else { return }
                     DispatchQueue.main.async {
                         MainActor.assumeIsolated {
-                            let title = String(text.prefix(30)).components(separatedBy: .newlines).first ?? "Текст"
+                            let title = String(text.prefix(30)).components(separatedBy: .newlines).first ?? L("Text")
                             self.saveToTray(data: Data(text.utf8), name: title, ext: "txt")
                         }
                     }
@@ -323,7 +323,7 @@ final class ShelfStore: ObservableObject {
         if url.isFileURL { add(url: url, kind: .tray); return }
         let plist: [String: String] = ["URL": url.absoluteString]
         guard let data = try? PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0) else { return }
-        saveToTray(data: data, name: url.host ?? "Ссылка", ext: "webloc")
+        saveToTray(data: data, name: url.host ?? L("Link"), ext: "webloc")
     }
 
     private func saveToTray(data: Data, name: String, ext: String) {
@@ -331,7 +331,7 @@ final class ShelfStore: ObservableObject {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let safe = name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
             .trimmingCharacters(in: .whitespaces)
-        var url = dir.appendingPathComponent((safe.isEmpty ? "Файл" : safe) + "." + ext)
+        var url = dir.appendingPathComponent((safe.isEmpty ? L("File") : safe) + "." + ext)
         var n = 2
         while FileManager.default.fileExists(atPath: url.path) {
             url = dir.appendingPathComponent("\(safe) \(n).\(ext)")

@@ -112,21 +112,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             button.image = image
         }
         let menu = NSMenu()
-        menu.addItem(withTitle: "Показать полку", action: #selector(showShelf), keyEquivalent: "").target = self
-        let claudeItem = menu.addItem(withTitle: "Спросить Claude…", action: #selector(askClaude), keyEquivalent: "")
+        menu.addItem(withTitle: L("Show Shelf"), action: #selector(showShelf), keyEquivalent: "").target = self
+        let claudeItem = menu.addItem(withTitle: L("Ask Claude…"), action: #selector(askClaude), keyEquivalent: "")
         claudeItem.target = self
-        let chatGPTItem = menu.addItem(withTitle: "Спросить ChatGPT…", action: #selector(askChatGPT), keyEquivalent: "")
+        let chatGPTItem = menu.addItem(withTitle: L("Ask ChatGPT…"), action: #selector(askChatGPT), keyEquivalent: "")
         chatGPTItem.target = self
         askClaudeItem = claudeItem
         askChatGPTItem = chatGPTItem
         menu.delegate = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Открыть папку со скриншотами", action: #selector(openFolder), keyEquivalent: "").target = self
+        menu.addItem(withTitle: L("Open Screenshots Folder"), action: #selector(openFolder), keyEquivalent: "").target = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Очистить полку", action: #selector(clearShelf), keyEquivalent: "").target = self
+        menu.addItem(withTitle: L("Clear Shelf"), action: #selector(clearShelf), keyEquivalent: "").target = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Настройки…", action: #selector(openSettings), keyEquivalent: ",").target = self
-        menu.addItem(withTitle: "Выйти из NotchShelf", action: #selector(quit), keyEquivalent: "q").target = self
+        menu.addItem(withTitle: L("Settings…"), action: #selector(openSettings), keyEquivalent: ",").target = self
+        menu.addItem(withTitle: L("Quit NotchShelf"), action: #selector(quit), keyEquivalent: "q").target = self
         item.menu = menu
         statusItem = item
     }
@@ -154,7 +154,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
             let hosting = NSHostingController(rootView: view)
             let window = NSWindow(contentViewController: hosting)
-            window.title = "Настройки NotchShelf"
+            window.title = L("NotchShelf Settings")
             window.styleMask = [.titled, .closable, .fullSizeContentView]
             window.titlebarAppearsTransparent = true
             window.isReleasedWhenClosed = false

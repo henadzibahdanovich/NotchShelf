@@ -1,0 +1,4 @@
+"NSDesktopFolderUsageDescription" = "NotchShelf watches for new screenshots on your Desktop.";
+"NSDocumentsFolderUsageDescription" = "NotchShelf watches for screenshots in the selected folder.";
+"NSDownloadsFolderUsageDescription" = "NotchShelf shows new downloads and screenshots from Downloads.";
+"NSAppleEventsUsageDescription" = "NotchShelf displays and controls playback in Music and Spotify.";

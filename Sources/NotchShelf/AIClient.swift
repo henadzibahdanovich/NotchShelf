@@ -37,12 +37,12 @@ enum AIError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .noKey(let p): return "Добавьте ключ \(p.title) в настройках"
+        case .noKey(let p): return L("Add your %@ key in Settings", "\(p.title)")
         case .http(let code, let message):
-            if code == 401 { return "Ключ не подошёл (401). Проверьте его в настройках" }
-            if code == 429 { return "Слишком много запросов или закончился баланс (429)" }
-            return message.isEmpty ? "Ошибка сервера (\(code))" : "\(message) (\(code))"
-        case .badResponse: return "Неожиданный ответ сервера"
+            if code == 401 { return L("The key was rejected (401). Check it in Settings") }
+            if code == 429 { return L("Too many requests or out of credits (429)") }
+            return message.isEmpty ? L("Server error (%@)", "\(code)") : "\(message) (\(code))"
+        case .badResponse: return L("Unexpected server response")
         }
     }
 }

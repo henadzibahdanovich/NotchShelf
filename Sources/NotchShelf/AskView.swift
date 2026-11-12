@@ -103,7 +103,7 @@ struct AskPanel: View {
                 .foregroundStyle(.tint)
             // Показываем только ИИ с подключённым ключом
             if settings.availableProviders.count > 1 {
-                Picker("Модель", selection: $ask.provider) {
+                Picker(L("Model"), selection: $ask.provider) {
                     ForEach(settings.availableProviders) { p in
                         Text(p.title).tag(p)
                     }
@@ -116,7 +116,7 @@ struct AskPanel: View {
                 Text(only.title)
                     .font(.system(size: 13, weight: .semibold))
             } else {
-                Text("ИИ не подключён")
+                Text(L("No AI connected"))
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.secondary)
             }
@@ -126,13 +126,13 @@ struct AskPanel: View {
             GlassGroup(spacing: 6) {
                 HStack(spacing: 6) {
                     if !ask.messages.isEmpty {
-                        GlassIconButton(systemName: "square.and.pencil", help: "Новый вопрос") { ask.reset() }
+                        GlassIconButton(systemName: "square.and.pencil", help: L("New Question")) { ask.reset() }
                     }
                     if !settings.availableProviders.isEmpty {
                         GlassIconButton(systemName: "arrow.up.forward.app",
-                                        help: "Продолжить в \(ask.provider.title) в браузере") { ask.continueInBrowser() }
+                                        help: L("Continue in %@ in the browser", "\(ask.provider.title)")) { ask.continueInBrowser() }
                     }
-                    GlassIconButton(systemName: "xmark", help: "Закрыть (Esc)") { close() }
+                    GlassIconButton(systemName: "xmark", help: L("Close (Esc)")) { close() }
                 }
             }
         }
@@ -160,7 +160,7 @@ struct AskPanel: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
-                .help(contextExpanded ? "Свернуть" : "Показать весь текст")
+                .help(contextExpanded ? L("Collapse") : L("Show full text"))
                 Button { ask.context = "" } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .bold))
@@ -168,7 +168,7 @@ struct AskPanel: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
-                .help("Убрать текст")
+                .help(L("Remove text"))
             }
         }
         .padding(10)
@@ -185,10 +185,10 @@ struct AskPanel: View {
                     Image(systemName: "key")
                         .font(.system(size: 26, weight: .light))
                         .foregroundStyle(.tertiary)
-                    Text("Подключите ключ Claude или ChatGPT")
+                    Text(L("Connect a Claude or ChatGPT key"))
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.secondary)
-                    Button("Открыть настройки", action: openSettings)
+                    Button(L("Open Settings"), action: openSettings)
                         .controlSize(.small)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -197,17 +197,17 @@ struct AskPanel: View {
                     Image(systemName: "text.bubble")
                         .font(.system(size: 26, weight: .light))
                         .foregroundStyle(.tertiary)
-                    Text("Спросите \(ask.provider.title) о чём угодно")
+                    Text(L("Ask %@ anything", "\(ask.provider.title)"))
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.secondary)
-                    Text("Перетащите сюда картинки, PDF или текстовые файлы — или выделите текст в любом приложении и выберите «Спросить \(ask.provider.title)»")
+                    Text(L("Drop images, PDFs or text files here — or select text in any app and choose “Ask %@”", "\(ask.provider.title)"))
                         .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                Text("Быстрые действия")
+                Text(L("Quick actions"))
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 FlowChips(actions: AskModel.quickActions) { action in ask.send(action.prompt) }
@@ -247,7 +247,7 @@ struct AskPanel: View {
             Text(text).font(.system(size: 12)).lineLimit(2)
             Spacer(minLength: 0)
             if !ask.hasKey {
-                Button("Открыть настройки", action: openSettings)
+                Button(L("Open Settings"), action: openSettings)
                     .controlSize(.small)
             }
         }
@@ -268,11 +268,11 @@ struct AskPanel: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Прикрепить файл (картинки, PDF, текст). Можно просто перетащить сюда")
+            .help(L("Attach a file (images, PDF, text). You can also just drop it here"))
             .padding(.leading, 5)
             .padding(.bottom, 4)
 
-            TextField(ask.messages.isEmpty ? "Спросите что угодно…" : "Уточните или задайте новый вопрос…",
+            TextField(ask.messages.isEmpty ? L("Ask anything…") : L("Follow up or ask something new…"),
                       text: $ask.input, axis: .vertical)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13.5))
@@ -292,7 +292,7 @@ struct AskPanel: View {
             }
             .buttonStyle(.plain)
             .disabled(!canSend && !ask.isStreaming)
-            .help(ask.isStreaming ? "Остановить" : "Отправить (Return)")
+            .help(ask.isStreaming ? L("Stop") : L("Send (Return)"))
             .padding(.trailing, 5)
             .padding(.bottom, 4)
         }
@@ -346,7 +346,7 @@ private struct MessageRow: View {
                 if message.display.isEmpty && ask.isStreaming && isLast {
                     HStack(spacing: 8) {
                         ProgressView().controlSize(.small)
-                        Text("\(ask.provider.title) думает…")
+                        Text(L("%@ is thinking…", "\(ask.provider.title)"))
                             .font(.system(size: 12))
                             .foregroundStyle(.secondary)
                     }
@@ -359,7 +359,7 @@ private struct MessageRow: View {
                 }
                 if !(ask.isStreaming && isLast) && !message.display.isEmpty {
                     Button { ask.copy(message) } label: {
-                        Label(ask.copiedMessageID == message.id ? "Скопировано" : "Копировать",
+                        Label(ask.copiedMessageID == message.id ? L("Copied") : L("Copy"),
                               systemImage: ask.copiedMessageID == message.id ? "checkmark" : "doc.on.doc")
                             .font(.system(size: 11, weight: .medium))
                     }
@@ -407,7 +407,7 @@ private struct ChipButton: View {
         .glassBackground(Capsule(), interactive: true)
         .scaleEffect(hovering ? 1.04 : 1)
         .animation(.easeOut(duration: 0.12), value: hovering)
-        .onHover { hovering = $0 }
+        .onReliableHover { hovering = $0 }
     }
 }
 
@@ -432,7 +432,7 @@ private struct AttachmentStrip: View {
                             }
                             .buttonStyle(.plain)
                             .offset(x: 5, y: -5)
-                            .help("Убрать")
+                            .help(L("Remove"))
                         }
                         .transition(.scale.combined(with: .opacity))
                 }
@@ -444,10 +444,9 @@ private struct AttachmentStrip: View {
                     .frame(width: 54, height: 54)
                 }
             }
-            .padding(.top, 6)
-            .padding(.horizontal, 4)
+            .padding(.top, 8)
+            .padding(.horizontal, 6)
         }
-        .scrollClipDisabled()
         .frame(height: 64)
     }
 }
@@ -498,8 +497,8 @@ private struct AttachDropHint: View {
             shape.strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [7, 5]))
             VStack(spacing: 6) {
                 Image(systemName: "paperclip").font(.system(size: 26, weight: .medium))
-                Text("Отпустите, чтобы прикрепить к вопросу").font(.system(size: 13, weight: .semibold))
-                Text("Картинки, PDF и текстовые файлы").font(.system(size: 11)).opacity(0.8)
+                Text(L("Release to attach to your question")).font(.system(size: 13, weight: .semibold))
+                Text(L("Images, PDFs and text files")).font(.system(size: 11)).opacity(0.8)
             }
             .foregroundStyle(Color.accentColor)
         }

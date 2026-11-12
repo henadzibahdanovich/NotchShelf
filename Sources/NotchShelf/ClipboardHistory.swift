@@ -97,7 +97,7 @@ final class ClipboardHistory: ObservableObject {
             entries.insert(e, at: 0)
             save()
         }
-        onToast?("Скопировано в буфер обмена")
+        onToast?(L("Copied to clipboard"))
     }
 
     func togglePin(_ entry: ClipEntry) {
@@ -118,7 +118,7 @@ final class ClipboardHistory: ObservableObject {
         removed.forEach { deleteImage(of: $0) }
         entries.removeAll { !$0.isPinned }
         save()
-        onToast?("История очищена")
+        onToast?(L("History cleared"))
     }
 
     // MARK: Хранение

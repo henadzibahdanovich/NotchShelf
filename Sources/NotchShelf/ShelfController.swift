@@ -16,7 +16,7 @@ struct ShelfLayout: Equatable {
     static let cardSpacing: CGFloat = 10
     static let panelPadding: CGFloat = 14
     static let widgetHeight: CGFloat = 56
-    static let contentHeight: CGFloat = 132     // превью 92 + 8 + подпись 26 + запас
+    static let contentHeight: CGFloat = 140     // превью 92 + 8 + подпись 26 + отступы для наведения
     static let panelWidth: CGFloat = 640
     static let panelHeight: CGFloat = panelPadding * 2 + widgetHeight + 12 + 26 + 12 + contentHeight
     static let askPanelHeight: CGFloat = 470
@@ -126,7 +126,7 @@ final class ShelfController {
 
         store.onNewItem = { [weak self] in self?.peek() }
         models.timer.onFinish = { [weak self] in
-            self?.store.showToast("Время вышло")
+            self?.store.showToast(L("Time’s up"))
             self?.peek(force: true)
         }
         models.clipboard.onToast = { [weak self] text in self?.store.showToast(text) }

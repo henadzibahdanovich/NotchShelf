@@ -84,8 +84,110 @@ struct GlassIconButton: View {
         .glassBackground(Circle(), interactive: true)
         .scaleEffect(hovering ? 1.08 : 1)
         .animation(.easeOut(duration: 0.12), value: hovering)
-        .onHover { hovering = $0 }
+        .onReliableHover { hovering = $0 }
         .help(help)
         .accessibilityLabel(help)
+    }
+}
+
+// MARK: - Надёжное наведение мыши
+
+/// Замена `.onHover` для плавающей панели. Штатное наведение SwiftUI в неактивном окне
+/// путает карточки в прокручиваемых списках, а положение AppKit-видов внутри стеклянных
+/// контейнеров не совпадает с тем, что на экране. Поэтому считаем сами: рамку элемента
+/// даёт SwiftUI (GeometryReader), положение курсора — окно полки.
+final class HoverToken {
+    var frame: CGRect = .null          // в координатах окна полки (начало — левый верхний угол)
+    var action: ((Bool) -> Void)?
+    private(set) var inside = false
+
+    func update(mouse: CGPoint?) {
+        let now = mouse.map { frame.contains($0) } ?? false
+        guard now != inside else { return }
+        inside = now
+        action?(now)
+    }
+}
+
+/// Один наблюдатель за мышью: при движении и прокрутке все элементы сверяют свою рамку с курсором.
+@MainActor
+final class HoverHub {
+    static let shared = HoverHub()
+    private let tokens = NSHashTable<HoverToken>.weakObjects()
+    private var installed = false
+    private weak var shelfWindow: NSWindow?
+
+    func register(_ token: HoverToken) {
+        tokens.add(token)
+        installIfNeeded()
+        token.update(mouse: mousePoint())
+    }
+
+    func unregister(_ token: HoverToken) {
+        tokens.remove(token)
+        token.update(mouse: nil)
+    }
+
+    func recheck(_ token: HoverToken) {
+        token.update(mouse: mousePoint())
+    }
+
+    /// Курсор в координатах содержимого окна полки, начало — левый верхний угол (как у SwiftUI).
+    private func mousePoint() -> CGPoint? {
+        if shelfWindow == nil { shelfWindow = NSApp.windows.first { $0 is ShelfPanel } }
+        guard let window = shelfWindow, window.isVisible, let content = window.contentView else { return nil }
+        let p = window.mouseLocationOutsideOfEventStream
+        return CGPoint(x: p.x, y: content.bounds.height - p.y)
+    }
+
+    private func refresh() {
+        let point = mousePoint()
+        for token in tokens.allObjects { token.update(mouse: point) }
+    }
+
+    private func installIfNeeded() {
+        guard !installed else { return }
+        installed = true
+        let local: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .leftMouseUp, .scrollWheel]
+        _ = NSEvent.addLocalMonitorForEvents(matching: local) { [weak self] event in
+            MainActor.assumeIsolated { self?.refresh() }
+            return event
+        }
+        _ = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .leftMouseUp]) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refresh() }
+        }
+    }
+}
+
+private struct ReliableHover: ViewModifier {
+    let action: (Bool) -> Void
+    @State private var token = HoverToken()
+
+    func body(content: Content) -> some View {
+        token.action = action
+        return content
+            .background(
+                GeometryReader { geo in
+                    let frame = geo.frame(in: .global)
+                    Color.clear
+                        .onAppear {
+                            token.frame = frame
+                            HoverHub.shared.register(token)
+                        }
+                        // Рамка меняется при прокрутке и перестановке карточек
+                        .onChange(of: frame) { _, newFrame in
+                            token.frame = newFrame
+                            HoverHub.shared.recheck(token)
+                        }
+                        .onDisappear { HoverHub.shared.unregister(token) }
+                }
+            )
+    }
+}
+
+extension View {
+    /// Наведение по геометрии (см. HoverHub).
+    func onReliableHover(_ action: @escaping (Bool) -> Void) -> some View {
+        modifier(ReliableHover(action: action))
     }
 }

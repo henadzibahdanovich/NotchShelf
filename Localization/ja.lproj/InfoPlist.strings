@@ -1,0 +1,4 @@
+"NSDesktopFolderUsageDescription" = "NotchShelfはデスクトップの新しいスクリーンショットを監視します。";
+"NSDocumentsFolderUsageDescription" = "NotchShelfは選択したフォルダのスクリーンショットを監視します。";
+"NSDownloadsFolderUsageDescription" = "NotchShelfは「ダウンロード」の新しいダウンロードとスクリーンショットを表示します。";
+"NSAppleEventsUsageDescription" = "NotchShelfはミュージックとSpotifyの再生を表示・操作します。";

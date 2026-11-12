@@ -43,6 +43,8 @@ STAGED_APP="$STAGING/${APP_NAME}.app"
 mkdir -p "$STAGED_APP/Contents/MacOS" "$STAGED_APP/Contents/Resources"
 cp "$BIN" "$STAGED_APP/Contents/MacOS/${APP_NAME}"
 cp Resources/AppIcon.icns "$STAGED_APP/Contents/Resources/AppIcon.icns"
+# Localizations: en, ru, zh-Hans, es, hi, ar, fr, pt-BR, ja, de
+cp -R Localization/*.lproj "$STAGED_APP/Contents/Resources/"
 
 cat > "$STAGED_APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -56,6 +58,12 @@ cat > "$STAGED_APP/Contents/Info.plist" <<PLIST
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>1.0</string>
   <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleDevelopmentRegion</key><string>en</string>
+  <key>CFBundleAllowMixedLocalizations</key><true/>
+  <key>CFBundleLocalizations</key><array>
+    <string>en</string><string>ru</string><string>zh-Hans</string><string>es</string><string>hi</string>
+    <string>ar</string><string>fr</string><string>pt-BR</string><string>ja</string><string>de</string>
+  </array>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
@@ -64,13 +72,13 @@ cat > "$STAGED_APP/Contents/Info.plist" <<PLIST
   <key>NSDownloadsFolderUsageDescription</key><string>NotchShelf shows new downloads and screenshots from Downloads.</string>
   <key>NSServices</key><array>
     <dict>
-      <key>NSMenuItem</key><dict><key>default</key><string>Спросить Claude</string></dict>
+      <key>NSMenuItem</key><dict><key>default</key><string>Ask Claude</string></dict>
       <key>NSMessage</key><string>askClaude</string>
       <key>NSPortName</key><string>NotchShelf</string>
       <key>NSSendTypes</key><array><string>public.utf8-plain-text</string><string>NSStringPboardType</string></array>
     </dict>
     <dict>
-      <key>NSMenuItem</key><dict><key>default</key><string>Спросить ChatGPT</string></dict>
+      <key>NSMenuItem</key><dict><key>default</key><string>Ask ChatGPT</string></dict>
       <key>NSMessage</key><string>askChatGPT</string>
       <key>NSPortName</key><string>NotchShelf</string>
       <key>NSSendTypes</key><array><string>public.utf8-plain-text</string><string>NSStringPboardType</string></array>

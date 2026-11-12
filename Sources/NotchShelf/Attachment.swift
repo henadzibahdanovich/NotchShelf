@@ -27,9 +27,9 @@ enum AttachmentError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .unsupported(let n): return "«\(n)»: такой формат пока не поддерживается (можно картинки, PDF и текстовые файлы)"
-        case .tooLarge(let n): return "«\(n)» слишком большой"
-        case .unreadable(let n): return "Не удалось прочитать «\(n)»"
+        case .unsupported(let n): return L("“%@”: this format isn’t supported yet (images, PDFs and text files work)", "\(n)")
+        case .tooLarge(let n): return L("“%@” is too large", "\(n)")
+        case .unreadable(let n): return L("Couldn’t read “%@”", "\(n)")
         }
     }
 }

@@ -1,0 +1,4 @@
+"NSDesktopFolderUsageDescription" = "NotchShelf следит за новыми скриншотами на рабочем столе.";
+"NSDocumentsFolderUsageDescription" = "NotchShelf следит за скриншотами в выбранной папке.";
+"NSDownloadsFolderUsageDescription" = "NotchShelf показывает новые загрузки и скриншоты из папки «Загрузки».";
+"NSAppleEventsUsageDescription" = "NotchShelf показывает, что играет в Музыке и Spotify, и управляет воспроизведением.";

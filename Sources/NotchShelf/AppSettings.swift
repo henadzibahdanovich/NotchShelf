@@ -8,9 +8,9 @@ enum ScreenshotFolder: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .downloads: return "Загрузки"
-        case .desktop: return "Рабочий стол"
-        case .dedicated: return "Изображения → NotchShelf"
+        case .downloads: return L("Downloads")
+        case .desktop: return L("Desktop")
+        case .dedicated: return L("Pictures → NotchShelf")
         }
     }
 

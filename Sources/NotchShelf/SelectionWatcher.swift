@@ -147,14 +147,14 @@ enum ServicesMenuSync {
     static func apply(_ connected: Set<AIProvider>) {
         let signature = AIProvider.allCases.map { connected.contains($0) ? "1" : "0" }.joined()
         let d = UserDefaults.standard
-        guard d.string(forKey: "servicesMenuSignature") != signature else { return }
-        d.set(signature, forKey: "servicesMenuSignature")
+        guard d.string(forKey: "servicesMenuSignature.v2") != signature else { return }
+        d.set(signature, forKey: "servicesMenuSignature.v2")
 
         let domain = "pbs" as CFString
         var status = (CFPreferencesCopyAppValue("NSServicesStatus" as CFString, domain) as? [String: Any]) ?? [:]
         let bundleID = Bundle.main.bundleIdentifier ?? Keychain.service
         for provider in AIProvider.allCases {
-            let title = provider == .claude ? "Спросить Claude" : "Спросить ChatGPT"
+            let title = provider == .claude ? "Ask Claude" : "Ask ChatGPT"   // имя из Info.plist (не локализуется)
             let message = provider == .claude ? "askClaude" : "askChatGPT"
             let on = connected.contains(provider) ? 1 : 0
             status["\(bundleID) - \(title) - \(message)"] = [

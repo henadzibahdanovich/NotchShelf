@@ -36,25 +36,43 @@ final class AskModel: ObservableObject {
     private let settings: AppSettings
     private var task: Task<Void, Never>?
 
-    static let systemPrompt = """
-    Ты — помощник, встроенный в macOS. Пользователь выделил текст в каком-то приложении и задаёт по нему вопрос.
-    Отвечай кратко и по делу, на языке вопроса пользователя (если вопроса нет — на языке текста).
-    Если просят написать ответ, перевод или исправленный текст — выдай только готовый текст, без вступлений и пояснений,
-    чтобы его можно было сразу скопировать и вставить.
-    """
+    /// Язык интерфейса (одна из локализаций приложения) — на нём модель отвечает по умолчанию.
+    static var uiLanguageCode: String { Bundle.main.preferredLocalizations.first ?? "en" }
+    static var uiLanguageName: String {
+        let code = uiLanguageCode
+        return Locale(identifier: "en").localizedString(forIdentifier: code) ?? code
+    }
 
-    static let quickActions: [QuickAction] = [
-        QuickAction(id: "reply", title: "Ответить", icon: "arrowshape.turn.up.left",
-                    prompt: "Напиши ответ на это сообщение от моего имени. Тот же язык и тон, только текст ответа."),
-        QuickAction(id: "translate", title: "Перевести", icon: "globe",
-                    prompt: "Переведи на русский. Если текст уже на русском — переведи на английский. Только перевод."),
-        QuickAction(id: "fix", title: "Исправить", icon: "checkmark.seal",
-                    prompt: "Исправь ошибки и улучши стиль, сохрани язык и смысл. Только исправленный текст."),
-        QuickAction(id: "shorten", title: "Сократить", icon: "arrow.down.right.and.arrow.up.left",
-                    prompt: "Сократи текст, сохранив главное."),
-        QuickAction(id: "explain", title: "Объяснить", icon: "lightbulb",
-                    prompt: "Объясни простыми словами, о чём этот текст и что в нём важно."),
-    ]
+    static var systemPrompt: String {
+        """
+        You are an assistant built into macOS. The user selected some text in an app and is asking about it, \
+        possibly with attached files. Be concise and to the point. Answer in the language of the user's question; \
+        if there is no question, answer in \(uiLanguageName). When asked to write a reply, a translation or a corrected text, \
+        output only the finished text with no preamble or explanations, so it can be copied and pasted right away.
+        """
+    }
+
+    /// Подсказка для «Перевести»: на язык интерфейса, а если текст уже на нём — на английский.
+    static var translatePrompt: String {
+        let code = uiLanguageCode
+        if code.hasPrefix("en") { return L("Translate this text into English. Output only the translation.") }
+        let name = Locale(identifier: code).localizedString(forIdentifier: code) ?? code
+        return L("Translate into this language: %@. If the text is already in it, translate into English. Output only the translation.", name)
+    }
+
+    static var quickActions: [QuickAction] {
+        [
+            QuickAction(id: "reply", title: L("Reply"), icon: "arrowshape.turn.up.left",
+                        prompt: L("Write a reply to this message on my behalf. Same language and tone, reply text only.")),
+            QuickAction(id: "translate", title: L("Translate"), icon: "globe", prompt: translatePrompt),
+            QuickAction(id: "fix", title: L("Fix"), icon: "checkmark.seal",
+                        prompt: L("Fix mistakes and improve the style, keeping the language and meaning. Corrected text only.")),
+            QuickAction(id: "shorten", title: L("Shorten"), icon: "arrow.down.right.and.arrow.up.left",
+                        prompt: L("Shorten the text, keeping the key points.")),
+            QuickAction(id: "explain", title: L("Explain"), icon: "lightbulb",
+                        prompt: L("Explain in simple words what this text is about and what matters in it.")),
+        ]
+    }
 
     init(settings: AppSettings) {
         self.settings = settings
@@ -107,12 +125,12 @@ final class AskModel: ObservableObject {
             return
         }
 
-        let fallback = files.isEmpty ? "Помоги с этим текстом." : "Посмотри на вложения и помоги с ними."
+        let fallback = files.isEmpty ? L("Help me with this text.") : L("Look at the attachments and help me with them.")
         var sent = question.isEmpty ? fallback : question
         if firstTurn && !context.isEmpty {
-            sent += "\n\n<текст>\n\(context)\n</текст>"
+            sent += "\n\n<text>\n\(context)\n</text>"
         }
-        let display = question.isEmpty ? (files.isEmpty ? "Помоги с этим текстом" : "") : question
+        let display = question.isEmpty ? (files.isEmpty ? L("Help with this text") : "") : question
         messages.append(ChatMessage(role: .user, text: sent, display: display, attachments: files))
         input = ""
         errorText = nil
@@ -150,7 +168,7 @@ final class AskModel: ObservableObject {
             // Возвращаем вопрос в поле ввода, чтобы можно было повторить
             if let q = messages.last, q.role == .user {
                 messages.removeLast()
-                if q.display != "Помоги с этим текстом" { input = q.display }
+                if q.display != L("Help with this text") { input = q.display }
                 attachments = q.attachments
             }
         }
@@ -190,12 +208,12 @@ final class AskModel: ObservableObject {
         guard !datas.isEmpty else { return }
         loadingAttachments += 1
         Task.detached(priority: .userInitiated) {
-            let items = datas.compactMap { AttachmentLoader.load(imageData: $0, name: "Изображение") }
+            let items = datas.compactMap { AttachmentLoader.load(imageData: $0, name: L("Image")) }
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 self.loadingAttachments -= 1
                 items.forEach { self.append($0) }
-                if items.isEmpty { self.errorText = "Не удалось прочитать картинку" }
+                if items.isEmpty { self.errorText = L("Couldn’t read the image") }
             }
         }
     }
@@ -215,7 +233,7 @@ final class AskModel: ObservableObject {
             } else if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
                 accepted = true
                 provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, _ in
-                    guard let data, let a = AttachmentLoader.load(imageData: data, name: "Изображение") else { return }
+                    guard let data, let a = AttachmentLoader.load(imageData: data, name: L("Image")) else { return }
                     DispatchQueue.main.async {
                         MainActor.assumeIsolated { [weak self] in self?.append(a) }
                     }
@@ -231,18 +249,18 @@ final class AskModel: ObservableObject {
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.allowedContentTypes = [.image, .pdf, .text, .sourceCode, .json]
-        panel.prompt = "Прикрепить"
+        panel.prompt = L("Attach")
         NSApp.activate(ignoringOtherApps: true)
         if panel.runModal() == .OK { addFiles(panel.urls) }
     }
 
     private func append(_ attachment: Attachment) {
         guard attachments.count < Self.maxAttachments else {
-            errorText = "Можно прикрепить не больше \(Self.maxAttachments) файлов"
+            errorText = L("You can attach up to %@ files", "\(Self.maxAttachments)")
             return
         }
         attachments.append(attachment)
-        if errorText != nil && !(errorText ?? "").contains("ключ") { errorText = nil }
+        if errorText != nil && hasKey { errorText = nil }
     }
 
     // MARK: Прочее
@@ -265,8 +283,8 @@ final class AskModel: ObservableObject {
         if let first = messages.first(where: { $0.role == .user }) {
             text = first.text
         } else {
-            let q = input.isEmpty ? "Помоги с этим текстом." : input
-            text = context.isEmpty ? q : "\(q)\n\n<текст>\n\(context)\n</текст>"
+            let q = input.isEmpty ? L("Help me with this text.") : input
+            text = context.isEmpty ? q : "\(q)\n\n<text>\n\(context)\n</text>"
         }
         if let url = provider.webURL(prefill: text) { NSWorkspace.shared.open(url) }
     }
