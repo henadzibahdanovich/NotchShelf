@@ -4,15 +4,15 @@
 
 **A small shelf at the top of your Mac.**
 
-Keep screenshots, downloads, copied snippets, music, and a focus timer one hover away.
+Keep screenshots, downloads, copied snippets, AI conversations, music, and a focus timer one hover away.
 
 [![Build](https://github.com/henadzibahdanovich/NotchShelf/actions/workflows/build.yml/badge.svg)](https://github.com/henadzibahdanovich/NotchShelf/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black)
 
-![Concept illustration of the NotchShelf interface; not a screenshot](docs/images/notchshelf-concept.svg)
+![NotchShelf open on macOS, with music controls, a focus timer, and recent screenshots](docs/images/shelf.png)
 
-*Concept illustration based on the source code, with fictional content and English labels. Not a screenshot. The current app interface is in Russian.*
+*The real NotchShelf app, captured on macOS with the English interface. Music, a focus timer, and recent files share one shelf.*
 
 </div>
 
@@ -36,17 +36,55 @@ It runs as a menu bar app, without a Dock icon. The shelf is a working area for 
 
 The collapsed indicator prioritizes **downloads → timer → playing music → recent files**.
 
-![Concept examples of collapsed indicators and tray/clipboard interactions; not screenshots](docs/images/notchshelf-states.svg)
+## In the app
 
-*Concept examples only. The download percentage, timer, filenames, and clipboard content are fictional.*
+### Ask without leaving the shelf
+
+Select text and choose **Services → Ask Claude / Ask ChatGPT**, or open a conversation from the shelf. Ask a question, attach a file, or use a quick action, then continue with follow-up questions in the same panel. Only providers with a saved API key are shown.
+
+![A ChatGPT conversation inside NotchShelf, showing a generated story and the follow-up field](docs/images/ask-chatgpt.png)
+
+*An actual ChatGPT response inside NotchShelf. The paperclip adds attachments; the input below the answer continues the conversation.*
+
+### Now Playing at a glance
+
+<p align="center">
+  <img src="docs/images/now-playing.png" width="612" alt="The collapsed NotchShelf indicator with album artwork and green playback activity bars">
+</p>
+
+*Album artwork and playback activity stay beside the notch while the shelf is collapsed.*
+
+<details>
+<summary><strong>Explore the settings</strong> — AI, screenshots, downloads, clipboard, and more</summary>
+
+These screenshots show the configuration used when they were captured. Cleanup times, clipboard limits, enabled features, and model choices are configurable and may differ from the defaults documented below.
+
+<table>
+  <tr>
+    <th>AI and screenshots</th>
+    <th>Tray, clipboard, and general settings</th>
+  </tr>
+  <tr>
+    <td valign="top" width="50%"><a href="docs/images/settings-ai.png"><img src="docs/images/settings-ai.png" alt="NotchShelf AI settings with a connected ChatGPT key, model selector, selection-island permission notice, and screenshot cleanup controls" width="460"></a></td>
+    <td valign="top" width="50%"><a href="docs/images/settings-general.png"><img src="docs/images/settings-general.png" alt="NotchShelf settings for tray behavior, clipboard history, music, launch at login, and macOS screenshot shortcuts" width="460"></a></td>
+  </tr>
+</table>
+
+<p align="center">
+  <a href="docs/images/settings-downloads.png"><img src="docs/images/settings-downloads.png" width="680" alt="Download settings with shelf expiration and separate options for deleting the original file"></a>
+</p>
+
+*The AI settings capture shows an Accessibility permission notice for the optional selection island. No API key values are visible. Click an image to view it at full size.*
+
+</details>
 
 ## Project status
 
 This is an early personal utility, published with its source code. It is not a validated production release.
 
-- **Local release compilation passed on November 12, 2026:** Apple Silicon (`arm64`), macOS 26.6.2, Apple Swift 6.3.3.
+- **At initial publication, local release compilation passed on November 12, 2026:** Apple Silicon (`arm64`), macOS 26.6.2, Apple Swift 6.3.3.
 - The previously reported actor-isolation error in `ClipboardHistory.swift` did not recur in that build. The directory accessor is declared `nonisolated` in this source.
-- Local `--build-only` packaging, app metadata validation, and ad-hoc signature verification also passed. The badge above reports GitHub Actions status, not runtime compatibility.
+- At initial publication, local `--build-only` packaging, app metadata validation, and ad-hoc signature verification also passed. The badge above reports GitHub Actions status, not runtime compatibility.
 - Music/Spotify automation, clipboard capture, drag-and-drop, download reporting, login items, and multi-display behavior have **not been verified end to end** as part of publication.
 - There is no automated runtime test suite, signed/notarized release, or prebuilt download in this initial publication. Intel and older supported macOS versions remain unverified.
 
@@ -114,7 +152,7 @@ The app watches screenshots saved by macOS; it does not implement its own screen
 - Known concealed/transient pasteboard markers are skipped. **This is not a guarantee that all passwords or secrets are excluded**: unmarked sensitive text can be captured. Pause history before copying sensitive content and remove saved entries as needed.
 - **Ask Claude / ChatGPT sends data to a third party.** When you send a question, the question, the selected text, any attached files, and the conversation are sent to Anthropic (`api.anthropic.com`) or OpenAI (`api.openai.com`) under your API key and their terms. Nothing is sent until you press Send or a quick action. API keys are stored in the macOS Keychain (service `app.glamlabs.notchshelf`); conversations are not saved to disk.
 - The reviewed source contains no analytics or cloud-sync implementation. Spotify artwork can be fetched over the network from the artwork URL returned by Spotify.
-- No personal clipboard data, screenshots, `.env` files, certificates, developer caches, or compiled app bundle are included in this repository.
+- `docs/images/` contains reviewed screenshots of the app. Runtime clipboard databases, API keys, `.env` files, certificates, developer caches, and compiled app bundles are not included.
 
 ## Limitations
 
@@ -143,10 +181,10 @@ The original bundle identifier, `app.glamlabs.notchshelf`, is retained for compa
 
 The project uses Swift Package Manager with AppKit, SwiftUI, Vision, and Quick Look. Open `Package.swift` in Xcode or build from the command line.
 
-- `Sources/NotchShelf/`: app lifecycle, shelf UI, filesystem monitoring, clipboard, playback, and timer.
+- `Sources/NotchShelf/`: app lifecycle, shelf UI, AI conversations and attachments, filesystem monitoring, clipboard, playback, timer, and localization.
 - `Resources/AppIcon.icns`: the supplied app icon.
 - `install.sh` / `uninstall.sh`: local packaging and installation lifecycle.
-- `docs/images/`: labeled concept illustrations, not application screenshots.
+- `docs/images/`: real app screenshots of the shelf, AI conversation, collapsed player, and settings.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for validation and issue-reporting guidance. Please keep personal files and clipboard contents out of issues and pull requests.
 
