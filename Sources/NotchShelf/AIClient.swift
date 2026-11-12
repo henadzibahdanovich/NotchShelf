@@ -27,6 +27,7 @@ struct AIMessage: Sendable {
     enum Role: String, Sendable { case user, assistant }
     let role: Role
     let text: String
+    var attachments: [Attachment] = []
 }
 
 enum AIError: LocalizedError {
@@ -103,7 +104,7 @@ enum AIClient {
                 "max_tokens": 4096,
                 "stream": true,
                 "system": system,
-                "messages": messages.map { ["role": $0.role.rawValue, "content": $0.text] },
+                "messages": messages.map { m -> [String: Any] in ["role": m.role.rawValue, "content": claudeContent(m)] },
             ]
         case .chatgpt:
             request = URLRequest(url: URL(string: "https://api.openai.com/v1/chat/completions")!)
@@ -111,15 +112,60 @@ enum AIClient {
             body = [
                 "model": model,
                 "stream": true,
-                "messages": [["role": "system", "content": system]]
-                    + messages.map { ["role": $0.role.rawValue, "content": $0.text] },
+                "messages": [["role": "system", "content": system] as [String: Any]]
+                    + messages.map { m -> [String: Any] in ["role": m.role.rawValue, "content": openAIContent(m)] },
             ]
         }
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 120
+        request.timeoutInterval = 180
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         return request
+    }
+
+    // MARK: Вложения
+
+    private static func fileBlockText(_ a: Attachment) -> String {
+        "<file name=\"\(a.name)\">\n\(a.textContent)\n</file>"
+    }
+
+    /// Anthropic: картинки и PDF — отдельными блоками перед текстом вопроса.
+    private static func claudeContent(_ m: AIMessage) -> Any {
+        guard !m.attachments.isEmpty else { return m.text }
+        var blocks: [[String: Any]] = []
+        for a in m.attachments {
+            switch a.kind {
+            case .image:
+                blocks.append(["type": "image",
+                               "source": ["type": "base64", "media_type": a.mediaType, "data": a.base64]])
+            case .pdf:
+                blocks.append(["type": "document",
+                               "source": ["type": "base64", "media_type": "application/pdf", "data": a.base64]])
+            case .text:
+                blocks.append(["type": "text", "text": fileBlockText(a)])
+            }
+        }
+        blocks.append(["type": "text", "text": m.text])
+        return blocks
+    }
+
+    /// OpenAI: текст, image_url (data URL) и file для PDF.
+    private static func openAIContent(_ m: AIMessage) -> Any {
+        guard !m.attachments.isEmpty, m.role == .user else { return m.text }
+        var parts: [[String: Any]] = [["type": "text", "text": m.text]]
+        for a in m.attachments {
+            switch a.kind {
+            case .image:
+                parts.append(["type": "image_url",
+                              "image_url": ["url": "data:\(a.mediaType);base64,\(a.base64)"]])
+            case .pdf:
+                parts.append(["type": "file",
+                              "file": ["filename": a.name, "file_data": "data:application/pdf;base64,\(a.base64)"]])
+            case .text:
+                parts.append(["type": "text", "text": fileBlockText(a)])
+            }
+        }
+        return parts
     }
 
     private static func textDelta(provider: AIProvider, json: [String: Any]) -> String? {

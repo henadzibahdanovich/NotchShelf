@@ -9,6 +9,7 @@ struct AskPanel: View {
     let openSettings: () -> Void
     @FocusState private var inputFocused: Bool
     @State private var contextExpanded = false
+    @State private var dropTargeted = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -31,11 +32,51 @@ struct AskPanel: View {
                 errorBanner(error)
             }
 
+            if !ask.attachments.isEmpty || ask.loadingAttachments > 0 {
+                AttachmentStrip(ask: ask)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+
             inputBar
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .animation(.snappy(duration: 0.25), value: ask.attachments.map(\.id))
+        .background(
+            FileDropCatcher(
+                onTargetChange: { targeted in
+                    dropTargeted = targeted
+                    // Иначе поле ввода перехватит файл и вставит его путь как текст
+                    if targeted { inputFocused = false }
+                },
+                onDropFiles: { urls in
+                    ask.addFiles(urls)
+                    focusInputSoon()
+                },
+                onDropImageData: { datas in
+                    ask.addImageData(datas)
+                    focusInputSoon()
+                }
+            )
+        )
         .glassBackground(RoundedRectangle(cornerRadius: 30, style: .continuous))
+        // Вся панель — зона для файлов, включая пустые места (без contentShape SwiftUI их «не видит»)
+        .contentShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .overlay {
+            if dropTargeted {
+                AttachDropHint().transition(.opacity)
+            }
+        }
+        .onDrop(of: [.fileURL, .image], isTargeted: $dropTargeted) { providers in
+            let ok = ask.addProviders(providers)
+            focusInputSoon()
+            return ok
+        }
+        .onChange(of: dropTargeted) { _, targeted in
+            // Иначе поле ввода перехватит файл и вставит его путь как текст
+            if targeted { inputFocused = false }
+        }
+        .animation(.easeOut(duration: 0.15), value: dropTargeted)
         .onAppear { focusInputSoon() }
         .onChange(of: ask.context) { _, _ in focusInputSoon() }
         .onExitCommand { close() }
@@ -159,7 +200,7 @@ struct AskPanel: View {
                     Text("Спросите \(ask.provider.title) о чём угодно")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.secondary)
-                    Text("Совет: выделите текст в любом приложении → правый клик → Службы → «Спросить \(ask.provider.title)»")
+                    Text("Перетащите сюда картинки, PDF или текстовые файлы — или выделите текст в любом приложении и выберите «Спросить \(ask.provider.title)»")
                         .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)
@@ -218,7 +259,19 @@ struct AskPanel: View {
     // MARK: Поле ввода
 
     private var inputBar: some View {
-        HStack(alignment: .bottom, spacing: 8) {
+        HStack(alignment: .bottom, spacing: 4) {
+            Button { ask.pickFiles() } label: {
+                Image(systemName: "paperclip")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 30, height: 30)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Прикрепить файл (картинки, PDF, текст). Можно просто перетащить сюда")
+            .padding(.leading, 5)
+            .padding(.bottom, 4)
+
             TextField(ask.messages.isEmpty ? "Спросите что угодно…" : "Уточните или задайте новый вопрос…",
                       text: $ask.input, axis: .vertical)
                 .textFieldStyle(.plain)
@@ -227,7 +280,6 @@ struct AskPanel: View {
                 .focused($inputFocused)
                 .onSubmit { ask.send() }
                 .padding(.vertical, 9)
-                .padding(.leading, 14)
 
             Button {
                 if ask.isStreaming { ask.stop() } else { ask.send() }
@@ -250,8 +302,10 @@ struct AskPanel: View {
     }
 
     private var canSend: Bool {
-        !ask.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard ask.loadingAttachments == 0 else { return false }
+        return !ask.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || (ask.messages.isEmpty && !ask.context.isEmpty)
+            || !ask.attachments.isEmpty
     }
 }
 
@@ -263,17 +317,30 @@ private struct MessageRow: View {
 
     var body: some View {
         if message.role == .user {
-            HStack {
-                Spacer(minLength: 60)
-                Text(message.display)
-                    .font(.system(size: 13))
-                    .lineLimit(4)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.accentColor.opacity(0.18)))
-                    .textSelection(.enabled)
+            VStack(alignment: .trailing, spacing: 6) {
+                if !message.attachments.isEmpty {
+                    HStack(spacing: 6) {
+                        Spacer(minLength: 60)
+                        ForEach(message.attachments) { a in
+                            AttachmentThumb(attachment: a, size: 44)
+                        }
+                    }
+                }
+                if !message.display.isEmpty {
+                    HStack {
+                        Spacer(minLength: 60)
+                        Text(message.display)
+                            .font(.system(size: 13))
+                            .lineLimit(4)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(Color.accentColor.opacity(0.18)))
+                            .textSelection(.enabled)
+                    }
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .trailing)
         } else {
             VStack(alignment: .leading, spacing: 8) {
                 if message.display.isEmpty && ask.isStreaming && isLast {
@@ -341,5 +408,101 @@ private struct ChipButton: View {
         .scaleEffect(hovering ? 1.04 : 1)
         .animation(.easeOut(duration: 0.12), value: hovering)
         .onHover { hovering = $0 }
+    }
+}
+
+// MARK: - Вложения
+
+/// Прикреплённые к следующему вопросу файлы.
+private struct AttachmentStrip: View {
+    @ObservedObject var ask: AskModel
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(ask.attachments) { a in
+                    AttachmentThumb(attachment: a, size: 54)
+                        .overlay(alignment: .topTrailing) {
+                            Button { ask.removeAttachment(a) } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 18, height: 18)
+                                    .background(Circle().fill(.black.opacity(0.6)))
+                            }
+                            .buttonStyle(.plain)
+                            .offset(x: 5, y: -5)
+                            .help("Убрать")
+                        }
+                        .transition(.scale.combined(with: .opacity))
+                }
+                if ask.loadingAttachments > 0 {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.primary.opacity(0.06))
+                        ProgressView().controlSize(.small)
+                    }
+                    .frame(width: 54, height: 54)
+                }
+            }
+            .padding(.top, 6)
+            .padding(.horizontal, 4)
+        }
+        .scrollClipDisabled()
+        .frame(height: 64)
+    }
+}
+
+/// Миниатюра вложения: картинка или иконка файла с подписью.
+struct AttachmentThumb: View {
+    let attachment: Attachment
+    let size: CGFloat
+    @State private var image: NSImage?
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+        ZStack {
+            if attachment.kind == .image, let image {
+                Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
+            } else {
+                shape.fill(Color.primary.opacity(0.07))
+                VStack(spacing: 2) {
+                    Image(systemName: attachment.kind == .pdf ? "doc.richtext" : "doc.text")
+                        .font(.system(size: size * 0.32, weight: .regular))
+                        .foregroundStyle(attachment.kind == .pdf ? Color.red : Color.secondary)
+                    if size > 40 {
+                        Text(attachment.name)
+                            .font(.system(size: 8.5))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 3)
+                    }
+                }
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(shape)
+        .overlay(shape.strokeBorder(.white.opacity(0.25), lineWidth: 0.5))
+        .help("\(attachment.name) · \(attachment.sizeText)")
+        .task(id: attachment.id) {
+            if attachment.kind == .image { image = NSImage(data: attachment.data) }
+        }
+    }
+}
+
+private struct AttachDropHint: View {
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 30, style: .continuous)
+        ZStack {
+            shape.fill(Color.accentColor.opacity(0.12))
+            shape.strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [7, 5]))
+            VStack(spacing: 6) {
+                Image(systemName: "paperclip").font(.system(size: 26, weight: .medium))
+                Text("Отпустите, чтобы прикрепить к вопросу").font(.system(size: 13, weight: .semibold))
+                Text("Картинки, PDF и текстовые файлы").font(.system(size: 11)).opacity(0.8)
+            }
+            .foregroundStyle(Color.accentColor)
+        }
+        .allowsHitTesting(false)
     }
 }

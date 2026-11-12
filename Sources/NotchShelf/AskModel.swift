@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 
 struct ChatMessage: Identifiable, Equatable {
     let id = UUID()
@@ -7,6 +8,7 @@ struct ChatMessage: Identifiable, Equatable {
     var text: String
     /// То, что показываем в интерфейсе.
     var display: String
+    var attachments: [Attachment] = []
 }
 
 struct QuickAction: Identifiable {
@@ -26,6 +28,10 @@ final class AskModel: ObservableObject {
     @Published private(set) var isStreaming = false
     @Published var errorText: String?
     @Published var copiedMessageID: UUID?
+    /// Файлы, прикреплённые к следующему вопросу.
+    @Published private(set) var attachments: [Attachment] = []
+    @Published private(set) var loadingAttachments = 0
+    static let maxAttachments = 10
 
     private let settings: AppSettings
     private var task: Task<Void, Never>?
@@ -73,6 +79,7 @@ final class AskModel: ObservableObject {
         messages = []
         input = ""
         errorText = nil
+        attachments = []
     }
 
     func reset() {
@@ -91,22 +98,27 @@ final class AskModel: ObservableObject {
         guard !isStreaming else { return }
         let question = (preset ?? input).trimmingCharacters(in: .whitespacesAndNewlines)
         let firstTurn = messages.isEmpty
-        guard !question.isEmpty || (firstTurn && !context.isEmpty) else { return }
+        let files = attachments
+        guard loadingAttachments == 0 else { return }
+        guard !question.isEmpty || (firstTurn && !context.isEmpty) || !files.isEmpty else { return }
 
         guard let key = Keychain.get(provider.keychainAccount) else {
             errorText = AIError.noKey(provider).errorDescription
             return
         }
 
-        var sent = question.isEmpty ? "Помоги с этим текстом." : question
+        let fallback = files.isEmpty ? "Помоги с этим текстом." : "Посмотри на вложения и помоги с ними."
+        var sent = question.isEmpty ? fallback : question
         if firstTurn && !context.isEmpty {
             sent += "\n\n<текст>\n\(context)\n</текст>"
         }
-        messages.append(ChatMessage(role: .user, text: sent, display: question.isEmpty ? "Помоги с этим текстом" : question))
+        let display = question.isEmpty ? (files.isEmpty ? "Помоги с этим текстом" : "") : question
+        messages.append(ChatMessage(role: .user, text: sent, display: display, attachments: files))
         input = ""
         errorText = nil
+        attachments = []
 
-        let history = messages.map { AIMessage(role: $0.role, text: $0.text) }
+        let history = messages.map { AIMessage(role: $0.role, text: $0.text, attachments: $0.attachments) }
         messages.append(ChatMessage(role: .assistant, text: "", display: ""))
         isStreaming = true
 
@@ -139,10 +151,98 @@ final class AskModel: ObservableObject {
             if let q = messages.last, q.role == .user {
                 messages.removeLast()
                 if q.display != "Помоги с этим текстом" { input = q.display }
+                attachments = q.attachments
             }
         }
         if (error as? URLError)?.code == .cancelled { return }
         errorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+    }
+
+    // MARK: Вложения
+
+    func removeAttachment(_ attachment: Attachment) {
+        attachments.removeAll { $0.id == attachment.id }
+    }
+
+    /// Файлы с диска (Finder, полка, окно выбора).
+    func addFiles(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        loadingAttachments += 1
+        Task.detached(priority: .userInitiated) {
+            let results = urls.map { AttachmentLoader.load(url: $0) }
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                self.loadingAttachments -= 1
+                var errors: [String] = []
+                for r in results {
+                    switch r {
+                    case .success(let a): self.append(a)
+                    case .failure(let e): errors.append(e.errorDescription ?? "")
+                    }
+                }
+                if !errors.isEmpty { self.errorText = errors.joined(separator: "\n") }
+            }
+        }
+    }
+
+    /// Картинки без файла (из браузера и т.п.).
+    func addImageData(_ datas: [Data]) {
+        guard !datas.isEmpty else { return }
+        loadingAttachments += 1
+        Task.detached(priority: .userInitiated) {
+            let items = datas.compactMap { AttachmentLoader.load(imageData: $0, name: "Изображение") }
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                self.loadingAttachments -= 1
+                items.forEach { self.append($0) }
+                if items.isEmpty { self.errorText = "Не удалось прочитать картинку" }
+            }
+        }
+    }
+
+    /// Перетаскивание: файлы из Finder или картинки из браузера.
+    func addProviders(_ providers: [NSItemProvider]) -> Bool {
+        var accepted = false
+        for provider in providers {
+            if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+                accepted = true
+                _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                    guard let url else { return }
+                    DispatchQueue.main.async {
+                        MainActor.assumeIsolated { [weak self] in self?.addFiles([url]) }
+                    }
+                }
+            } else if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
+                accepted = true
+                provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, _ in
+                    guard let data, let a = AttachmentLoader.load(imageData: data, name: "Изображение") else { return }
+                    DispatchQueue.main.async {
+                        MainActor.assumeIsolated { [weak self] in self?.append(a) }
+                    }
+                }
+            }
+        }
+        return accepted
+    }
+
+    /// Окно «Прикрепить файл».
+    func pickFiles() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [.image, .pdf, .text, .sourceCode, .json]
+        panel.prompt = "Прикрепить"
+        NSApp.activate(ignoringOtherApps: true)
+        if panel.runModal() == .OK { addFiles(panel.urls) }
+    }
+
+    private func append(_ attachment: Attachment) {
+        guard attachments.count < Self.maxAttachments else {
+            errorText = "Можно прикрепить не больше \(Self.maxAttachments) файлов"
+            return
+        }
+        attachments.append(attachment)
+        if errorText != nil && !(errorText ?? "").contains("ключ") { errorText = nil }
     }
 
     // MARK: Прочее

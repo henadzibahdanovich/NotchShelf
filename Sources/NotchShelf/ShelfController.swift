@@ -88,10 +88,16 @@ final class ShelfController {
 
         let root = ShelfRootView(models: models, store: store, ui: ui, actions: ShelfActions(
             openSettings: openSettings,
-            dragStarted: { [weak self] in self?.ui.isDragging = true },
+            dragStarted: { [weak self] in
+                guard let self else { return }
+                self.ui.isDragging = true
+                // Окно полки большое и прозрачное — пропускаем перетаскивание к приложениям под ним
+                self.panel.ignoresMouseEvents = true
+            },
             dragEnded: { [weak self] item, accepted in
                 guard let self else { return }
                 self.ui.isDragging = false
+                self.panel.ignoresMouseEvents = !self.ui.expanded
                 if accepted { self.store.handleDropped(item) }
                 self.scheduleCollapseIfMouseOutside()
             },
@@ -101,7 +107,10 @@ final class ShelfController {
                 guard let self else { return }
                 self.openAsk(provider: provider, context: self.ui.selectionText, prompt: prompt)
             },
-            dismissSelection: { [weak self] in self?.hideSelectionBar() }
+            dismissSelection: { [weak self] in self?.hideSelectionBar() },
+            askAboutFile: { [weak self] item in
+                self?.openAsk(provider: nil, context: "", files: [item.url])
+            }
         ))
         let hosting = NSHostingView(rootView: root)
         hosting.sizingOptions = []
@@ -287,12 +296,13 @@ final class ShelfController {
 
     // MARK: Спросить Claude / ChatGPT
 
-    func openAsk(provider: AIProvider?, context: String, prompt: String? = nil) {
+    func openAsk(provider: AIProvider?, context: String, prompt: String? = nil, files: [URL] = []) {
         selectionHideWork?.cancel()
         peekWork?.cancel()
         collapseWork?.cancel()
         openWork?.cancel()
         models.ask.start(provider: provider, context: context)
+        models.ask.addFiles(files)
         withAnimation(.spring(response: 0.4, dampingFraction: 0.82)) {
             ui.mode = .ask
         }

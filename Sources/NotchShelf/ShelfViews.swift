@@ -11,6 +11,8 @@ struct ShelfActions {
     /// Из плашки выделения: какой ИИ и (необязательно) быстрое действие.
     var askAboutSelection: (AIProvider, String?) -> Void
     var dismissSelection: () -> Void
+    /// Открыть вопрос к ИИ с этим файлом во вложении.
+    var askAboutFile: (ShotItem) -> Void
 }
 
 /// Все модели, которые видит полка.
@@ -314,7 +316,7 @@ struct HubPanel: View {
                 if store.filter == .clipboard {
                     ClipboardRow(clipboard: models.clipboard)
                 } else {
-                    FilesRow(store: store, downloads: models.downloads, actions: actions)
+                    FilesRow(store: store, downloads: models.downloads, settings: models.settings, actions: actions)
                 }
             }
             .frame(height: ShelfLayout.contentHeight)
@@ -554,6 +556,7 @@ struct PanelHeader: View {
 struct FilesRow: View {
     @ObservedObject var store: ShelfStore
     @ObservedObject var downloads: DownloadProgressMonitor
+    @ObservedObject var settings: AppSettings
     let actions: ShelfActions
 
     private var showDownloads: Bool { store.filter == .all || store.filter == .downloads }
@@ -572,7 +575,8 @@ struct FilesRow: View {
                                 .transition(.scale(scale: 0.7).combined(with: .opacity))
                         }
                         ForEach(items) { item in
-                            ShotCard(item: item, store: store, actions: actions)
+                            ShotCard(item: item, store: store, actions: actions,
+                                     aiAvailable: !settings.availableProviders.isEmpty)
                                 .transition(.scale(scale: 0.7).combined(with: .opacity))
                         }
                     }
@@ -646,6 +650,7 @@ struct ShotCard: View {
     let item: ShotItem
     @ObservedObject var store: ShelfStore
     let actions: ShelfActions
+    var aiAvailable = false
     @State private var hovering = false
 
     var body: some View {
@@ -725,7 +730,7 @@ struct ShotCard: View {
     private var footer: some View {
         ZStack {
             if hovering {
-                HStack(spacing: 6) { buttons }
+                HStack(spacing: buttonSize < 26 ? 4 : 6) { buttons }
                     .transition(.opacity.combined(with: .scale(scale: 0.9)))
             } else {
                 TimelineView(.periodic(from: .now, by: 15)) { context in
@@ -742,38 +747,52 @@ struct ShotCard: View {
         }
     }
 
+    /// Можно ли спросить ИИ про этот файл (картинка, PDF или текст + подключён ключ).
+    private var canAsk: Bool {
+        guard aiAvailable else { return false }
+        let type = UTType(filenameExtension: item.url.pathExtension.lowercased())
+        return item.isImage || type?.conforms(to: .pdf) == true || type?.conforms(to: .text) == true
+    }
+
+    /// С пятой кнопкой карточка тесновата — делаем кнопки чуть меньше.
+    private var buttonSize: CGFloat { canAsk && item.kind != .tray ? 23 : 26 }
+
     @ViewBuilder
     private var buttons: some View {
+        let s = buttonSize
+        if canAsk {
+            GlassIconButton(systemName: "sparkles", help: "Спросить ИИ про этот файл", size: s) { actions.askAboutFile(item) }
+        }
         switch item.kind {
         case .screenshot:
-            GlassIconButton(systemName: "doc.on.doc", help: "Скопировать") { store.copy(item) }
+            GlassIconButton(systemName: "doc.on.doc", help: "Скопировать", size: s) { store.copy(item) }
             if item.isImage {
-                GlassIconButton(systemName: "text.viewfinder", help: "Скопировать текст со скриншота") { store.copyText(item) }
+                GlassIconButton(systemName: "text.viewfinder", help: "Скопировать текст со скриншота", size: s) { store.copyText(item) }
             } else {
-                GlassIconButton(systemName: "folder", help: "Показать в Finder") { store.revealInFinder(item) }
+                GlassIconButton(systemName: "folder", help: "Показать в Finder", size: s) { store.revealInFinder(item) }
             }
-            pinButton
-            GlassIconButton(systemName: "trash", help: "В Корзину", role: .destructive) { store.delete(item) }
+            pinButton(size: s)
+            GlassIconButton(systemName: "trash", help: "В Корзину", role: .destructive, size: s) { store.delete(item) }
         case .download:
-            GlassIconButton(systemName: "folder", help: "Показать в Finder") { store.revealInFinder(item) }
-            GlassIconButton(systemName: "xmark", help: "Убрать с полки (файл останется)") { store.dismiss(item) }
-            pinButton
-            GlassIconButton(systemName: "trash", help: "В Корзину", role: .destructive) { store.delete(item) }
+            GlassIconButton(systemName: "folder", help: "Показать в Finder", size: s) { store.revealInFinder(item) }
+            GlassIconButton(systemName: "xmark", help: "Убрать с полки (файл останется)", size: s) { store.dismiss(item) }
+            pinButton(size: s)
+            GlassIconButton(systemName: "trash", help: "В Корзину", role: .destructive, size: s) { store.delete(item) }
         case .tray:
-            GlassIconButton(systemName: "doc.on.doc", help: "Скопировать") { store.copy(item) }
+            GlassIconButton(systemName: "doc.on.doc", help: "Скопировать", size: s) { store.copy(item) }
             if !item.owned {
-                GlassIconButton(systemName: "folder", help: "Показать в Finder") { store.revealInFinder(item) }
+                GlassIconButton(systemName: "folder", help: "Показать в Finder", size: s) { store.revealInFinder(item) }
             }
             GlassIconButton(systemName: "xmark",
-                            help: item.owned ? "Убрать из лотка" : "Убрать из лотка (файл останется на месте)") {
+                            help: item.owned ? "Убрать из лотка" : "Убрать из лотка (файл останется на месте)", size: s) {
                 store.dismiss(item)
             }
         }
     }
 
-    private var pinButton: some View {
+    private func pinButton(size: CGFloat) -> some View {
         GlassIconButton(systemName: item.isPinned ? "pin.slash" : "pin",
-                        help: item.isPinned ? "Открепить" : "Закрепить — не убирать автоматически") {
+                        help: item.isPinned ? "Открепить" : "Закрепить — не убирать автоматически", size: size) {
             store.togglePin(item)
         }
     }
